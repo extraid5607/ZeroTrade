@@ -11,10 +11,24 @@ import AccountView from './components/AccountView';
 import LeaderboardModal from './components/LeaderboardModal';
 import AuthModal from './components/AuthModal';
 import BillingModal from './components/BillingModal';
+import InstallAppModal from './components/InstallAppModal';
+import InstallAppBanner from './components/InstallAppBanner';
 import Toast from './components/Toast';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState('watchlist'); // 'watchlist' | 'chart' | 'options' | 'orders' | 'portfolio' | 'account'
+  const [activeTab, setActiveTab] = useState(() => {
+    try {
+      const hash = window.location.hash.replace('#', '');
+      const validTabs = ['watchlist', 'chart', 'options', 'orders', 'portfolio', 'account'];
+      if (validTabs.includes(hash)) return hash;
+      const paramTab = new URLSearchParams(window.location.search).get('tab');
+      if (validTabs.includes(paramTab)) return paramTab;
+    } catch (e) {
+      // ignore
+    }
+    return 'watchlist';
+  });
+
   const [selectedSymbol, setSelectedSymbol] = useState('SPY');
   const [tickers, setTickers] = useState([]);
   const [lastTick, setLastTick] = useState(null);
@@ -41,9 +55,124 @@ export default function App() {
 
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+  const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [toast, setToast] = useState(null);
 
   const wsRef = useRef(null);
+
+  // Synchronized refs for popstate listener to prevent stale state closures
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+
+  const modalsRef = useRef({
+    quote: selectedQuoteTicker,
+    order: orderModalConfig.isOpen,
+    billing: billingConfig.isOpen,
+    auth: isAuthOpen,
+    leaderboard: isLeaderboardOpen,
+    install: isInstallModalOpen
+  });
+  modalsRef.current = {
+    quote: selectedQuoteTicker,
+    order: orderModalConfig.isOpen,
+    billing: billingConfig.isOpen,
+    auth: isAuthOpen,
+    leaderboard: isLeaderboardOpen,
+    install: isInstallModalOpen
+  };
+
+  // =========================================================================
+  // 1. PWA 'beforeinstallprompt' & Service Worker Event Setup
+  // =========================================================================
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+  }, []);
+
+  // =========================================================================
+  // 2. Mobile Back-Button Navigation & History State Handling
+  // =========================================================================
+  const handleTabChange = useCallback((newTab) => {
+    if (newTab === activeTabRef.current) return;
+
+    if (newTab === 'watchlist') {
+      window.history.replaceState({ tab: 'watchlist', depth: 0 }, '', window.location.pathname);
+      setActiveTab('watchlist');
+    } else {
+      if (activeTabRef.current === 'watchlist') {
+        window.history.pushState({ tab: newTab, depth: 1 }, '', '#' + newTab);
+      } else {
+        window.history.replaceState({ tab: newTab, depth: 1 }, '', '#' + newTab);
+      }
+      setActiveTab(newTab);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Set initial baseline state in history
+    if (!window.history.state) {
+      if (activeTab === 'watchlist') {
+        window.history.replaceState({ tab: 'watchlist', depth: 0 }, '', window.location.pathname);
+      } else {
+        window.history.replaceState({ tab: activeTab, depth: 1 }, '', '#' + activeTab);
+      }
+    }
+
+    const handlePopState = (event) => {
+      const m = modalsRef.current;
+
+      // Priority 1: Close open bottom sheets or modals first
+      if (m.order) {
+        setOrderModalConfig(prev => ({ ...prev, isOpen: false }));
+        return;
+      }
+      if (m.quote) {
+        setSelectedQuoteTicker(null);
+        return;
+      }
+      if (m.billing) {
+        setBillingConfig(prev => ({ ...prev, isOpen: false }));
+        return;
+      }
+      if (m.auth) {
+        setIsAuthOpen(false);
+        return;
+      }
+      if (m.leaderboard) {
+        setIsLeaderboardOpen(false);
+        return;
+      }
+      if (m.install) {
+        setIsInstallModalOpen(false);
+        return;
+      }
+
+      // Priority 2: If user is on any sub-tab (Orders, Portfolio, Options, Chart, Account)
+      // and clicks Back, return to Watchlist (home landing tab).
+      if (activeTabRef.current !== 'watchlist') {
+        setActiveTab('watchlist');
+        window.history.replaceState({ tab: 'watchlist', depth: 0 }, '', window.location.pathname);
+        return;
+      }
+
+      // Priority 3: User is already on Watchlist and presses Back again ->
+      // Natural browser back action executes, closing or exiting the site.
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTab]);
+
+  // Modal Push State Helper
+  const pushModalHistory = (modalName) => {
+    window.history.pushState({ tab: activeTabRef.current, modal: modalName, depth: 2 }, '', '#' + modalName);
+  };
 
   // Theme synchronization
   useEffect(() => {
@@ -262,6 +391,7 @@ export default function App() {
   // Quick action: Open Order Modal from anywhere
   const openOrderModal = (side, sym = selectedSymbol, contractInfo = null) => {
     setSelectedSymbol(sym);
+    pushModalHistory('order');
     setOrderModalConfig({
       isOpen: true,
       side: side,
@@ -270,24 +400,52 @@ export default function App() {
     });
   };
 
+  const openQuoteSheet = (ticker) => {
+    pushModalHistory('quote');
+    setSelectedQuoteTicker(ticker);
+  };
+
+  const openBillingModal = (planId) => {
+    pushModalHistory('billing');
+    setBillingConfig({ isOpen: true, initialPlanId: planId || 'reset_10k' });
+  };
+
+  const openLeaderboard = () => {
+    pushModalHistory('leaderboard');
+    setIsLeaderboardOpen(true);
+  };
+
+  const openAuth = () => {
+    pushModalHistory('auth');
+    setIsAuthOpen(true);
+  };
+
+  const openInstallModal = () => {
+    pushModalHistory('install');
+    setIsInstallModalOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-surface-darkBg text-gray-900 dark:text-gray-100 flex flex-col font-sans transition-colors duration-200 pb-16 md:pb-0">
       
       {/* 1. Top Navigation Bar (Indian Broker Style with Ticker Tape) */}
       <Navbar
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={handleTabChange}
         portfolio={portfolio}
         user={user}
         tickers={tickers}
-        onOpenBillingModal={(planId) => setBillingConfig({ isOpen: true, initialPlanId: planId || 'reset_10k' })}
-        onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
-        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenBillingModal={openBillingModal}
+        onOpenLeaderboard={openLeaderboard}
+        onOpenAuth={openAuth}
         onLogout={handleLogout}
         theme={theme}
         toggleTheme={toggleTheme}
         wsConnected={wsConnected}
       />
+
+      {/* Floating Mobile PWA Install Banner */}
+      <InstallAppBanner onOpenInstallModal={openInstallModal} />
 
       {/* ========================================================================= */}
       {/* 2. DESKTOP WORKSPACE (Zerodha Kite 2-Pane Split Terminal Layout)          */}
@@ -299,10 +457,10 @@ export default function App() {
           <Watchlist
             tickers={tickers}
             selectedSymbol={selectedSymbol}
-            onSelectSymbol={(ticker) => setSelectedQuoteTicker(ticker)}
+            onSelectSymbol={openQuoteSheet}
             onViewChart={(sym) => {
               setSelectedSymbol(sym);
-              if (activeTab === 'watchlist') setActiveTab('chart');
+              if (activeTab === 'watchlist') handleTabChange('chart');
             }}
             onOpenOrderModal={(side, sym) => openOrderModal(side, sym)}
             isDesktopSidebar={true}
@@ -320,7 +478,7 @@ export default function App() {
                 activeTicker={activeTicker}
                 theme={theme}
                 lastTick={lastTick}
-                onOpenOptionChain={() => setActiveTab('options')}
+                onOpenOptionChain={() => handleTabChange('options')}
                 onOpenOrderModal={(side) => openOrderModal(side, selectedSymbol)}
               />
             </div>
@@ -367,14 +525,14 @@ export default function App() {
                 portfolio={portfolio}
                 tickers={tickers}
                 onClosePosition={handleClosePosition}
-                onOpenBillingModal={(planId) => setBillingConfig({ isOpen: true, initialPlanId: planId || 'reset_10k' })}
+                onOpenBillingModal={openBillingModal}
                 onSelectSymbol={(sym) => {
                   setSelectedSymbol(sym);
-                  setActiveTab('chart');
+                  handleTabChange('chart');
                 }}
                 onOpenOptionChain={(sym) => {
                   setSelectedSymbol(sym);
-                  setActiveTab('options');
+                  handleTabChange('options');
                 }}
                 onOpenOrderModal={(side, sym) => openOrderModal(side, sym)}
               />
@@ -387,12 +545,13 @@ export default function App() {
               <AccountView
                 user={user}
                 portfolio={portfolio}
-                onOpenBillingModal={(planId) => setBillingConfig({ isOpen: true, initialPlanId: planId || 'reset_10k' })}
-                onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
-                onOpenAuth={() => setIsAuthOpen(true)}
+                onOpenBillingModal={openBillingModal}
+                onOpenLeaderboard={openLeaderboard}
+                onOpenAuth={openAuth}
                 onLogout={handleLogout}
                 theme={theme}
                 toggleTheme={toggleTheme}
+                onOpenInstallModal={openInstallModal}
               />
             </div>
           )}
@@ -402,7 +561,7 @@ export default function App() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 3. MOBILE WORKSPACE (100% PRESERVED & UNCHANGED FOR MOBILE PERFECTION)    */}
+      {/* 3. MOBILE WORKSPACE (100% PRESERVED & SMOOTH MOBILE UX)                    */}
       {/* ========================================================================= */}
       <main className="md:hidden flex-1 p-3 w-full flex flex-col">
         
@@ -411,10 +570,10 @@ export default function App() {
           <Watchlist
             tickers={tickers}
             selectedSymbol={selectedSymbol}
-            onSelectSymbol={(ticker) => setSelectedQuoteTicker(ticker)}
+            onSelectSymbol={openQuoteSheet}
             onViewChart={(sym) => {
               setSelectedSymbol(sym);
-              setActiveTab('chart');
+              handleTabChange('chart');
             }}
             onOpenOrderModal={(side, sym) => openOrderModal(side, sym)}
             isDesktopSidebar={false}
@@ -428,7 +587,7 @@ export default function App() {
             activeTicker={activeTicker}
             theme={theme}
             lastTick={lastTick}
-            onOpenOptionChain={() => setActiveTab('options')}
+            onOpenOptionChain={() => handleTabChange('options')}
             onOpenOrderModal={(side) => openOrderModal(side, selectedSymbol)}
           />
         )}
@@ -469,14 +628,14 @@ export default function App() {
             portfolio={portfolio}
             tickers={tickers}
             onClosePosition={handleClosePosition}
-            onOpenBillingModal={(planId) => setBillingConfig({ isOpen: true, initialPlanId: planId || 'reset_10k' })}
+            onOpenBillingModal={openBillingModal}
             onSelectSymbol={(sym) => {
               setSelectedSymbol(sym);
-              setActiveTab('chart');
+              handleTabChange('chart');
             }}
             onOpenOptionChain={(sym) => {
               setSelectedSymbol(sym);
-              setActiveTab('options');
+              handleTabChange('options');
             }}
             onOpenOrderModal={(side, sym) => openOrderModal(side, sym)}
           />
@@ -487,12 +646,13 @@ export default function App() {
           <AccountView
             user={user}
             portfolio={portfolio}
-            onOpenBillingModal={(planId) => setBillingConfig({ isOpen: true, initialPlanId: planId || 'reset_10k' })}
-            onOpenLeaderboard={() => setIsLeaderboardOpen(true)}
-            onOpenAuth={() => setIsAuthOpen(true)}
+            onOpenBillingModal={openBillingModal}
+            onOpenLeaderboard={openLeaderboard}
+            onOpenAuth={openAuth}
             onLogout={handleLogout}
             theme={theme}
             toggleTheme={toggleTheme}
+            onOpenInstallModal={openInstallModal}
           />
         )}
 
@@ -519,11 +679,11 @@ export default function App() {
         onOpenOrderModal={(side) => openOrderModal(side, selectedQuoteTicker?.symbol)}
         onViewChart={(sym) => {
           setSelectedSymbol(sym);
-          setActiveTab('chart');
+          handleTabChange('chart');
         }}
         onOpenOptionChain={(sym) => {
           setSelectedSymbol(sym);
-          setActiveTab('options');
+          handleTabChange('options');
         }}
       />
 
@@ -553,7 +713,7 @@ export default function App() {
         isOpen={billingConfig.isOpen}
         initialPlanId={billingConfig.initialPlanId}
         onClose={() => setBillingConfig(prev => ({ ...prev, isOpen: false }))}
-        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenAuth={openAuth}
         user={user}
         onPaymentSuccess={(data) => {
           loadPortfolio();
@@ -576,6 +736,21 @@ export default function App() {
             type: 'success',
             title: 'Welcome Trader!',
             message: `Signed in as ${u.displayName || u.email}. Virtual cash: $${u.virtualCash.toLocaleString('en-US')}`
+          });
+        }}
+      />
+
+      {/* 4. PWA App Install Modal */}
+      <InstallAppModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        deferredPrompt={deferredInstallPrompt}
+        onInstalled={() => {
+          setDeferredInstallPrompt(null);
+          showToast({
+            type: 'success',
+            title: 'App Installed!',
+            message: 'ZeroVega is now installed on your home screen.'
           });
         }}
       />

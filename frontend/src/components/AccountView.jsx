@@ -21,7 +21,9 @@ import {
   Layers,
   Sparkles,
   BarChart3,
-  Zap
+  Zap,
+  Smartphone,
+  Download
 } from 'lucide-react';
 import Logo from './Logo';
 import PnlReport from './PnlReport';
@@ -34,7 +36,8 @@ export default function AccountView({
   onOpenAuth,
   onLogout,
   theme,
-  toggleTheme
+  toggleTheme,
+  onOpenInstallModal
 }) {
   const [accountSubTab, setAccountSubTab] = useState('overview'); // 'overview' | 'pnl_report'
   const cash = Number(portfolio?.cash ?? 10000);
@@ -277,6 +280,33 @@ export default function AccountView({
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
             </div>
+
+            {/* Install Mobile App (PWA) */}
+            {onOpenInstallModal && (
+              <div 
+                onClick={onOpenInstallModal}
+                className="p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-surface-darkHover cursor-pointer transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-xs">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <span>Install ZeroVega Mobile App</span>
+                      <span className="text-[10px] font-bold px-2 py-0.2 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/40">
+                        PWA
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400 font-normal">Add to your Home Screen for full-screen native mobile trading</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 hidden sm:inline">Install</span>
+                  <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
+                </div>
+              </div>
+            )}
 
             {/* Dark / Light Mode Toggle */}
             <div 
