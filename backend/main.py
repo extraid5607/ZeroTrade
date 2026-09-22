@@ -25,9 +25,17 @@ logger = logging.getLogger("zerotrade.main")
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Initializing database...")
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        logger.error(f"Database init exception: {e}")
+
     logger.info("Starting MarketDataHub background price feeds...")
-    data_hub.start()
+    try:
+        data_hub.start()
+    except Exception as e:
+        logger.error(f"MarketDataHub start error: {e}")
+
     yield
     # Shutdown
     logger.info("Shutting down MarketDataHub...")

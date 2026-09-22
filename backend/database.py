@@ -105,31 +105,40 @@ class PostgresConnectionWrapper:
 
 @contextmanager
 def get_db() -> Generator[Any, None, None]:
-    """Provide a transactional scope around database operations."""
+    """Provide a transactional scope around database operations with automatic SQLite fallback."""
+    global IS_POSTGRES
     if IS_POSTGRES:
-        conn = psycopg2.connect(PG_URL)
-        wrapped_conn = PostgresConnectionWrapper(conn)
         try:
-            yield wrapped_conn
-            wrapped_conn.commit()
-        except Exception:
-            wrapped_conn.rollback()
-            raise
-        finally:
-            wrapped_conn.close()
-    else:
-        conn = sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False)
-        conn.row_factory = sqlite3.Row
+            conn = psycopg2.connect(PG_URL, connect_timeout=6)
+            wrapped_conn = PostgresConnectionWrapper(conn)
+            try:
+                yield wrapped_conn
+                wrapped_conn.commit()
+            except Exception:
+                wrapped_conn.rollback()
+                raise
+            finally:
+                wrapped_conn.close()
+            return
+        except Exception as pg_err:
+            logger.warning(f"PostgreSQL connection failed ({pg_err}). Falling back to SQLite.")
+
+    # SQLite connection (always reliable)
+    conn = sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    try:
         conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+    except Exception:
+        pass
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def init_db():

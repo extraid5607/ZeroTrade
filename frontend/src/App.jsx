@@ -240,16 +240,43 @@ export default function App() {
     }
   }, []);
 
+  // Fetch initial market tickers immediately via REST (instant 0ms loading)
+  const loadInitialTickers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/markets/tickers');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tickers && data.tickers.length > 0) {
+          setTickers(prev => {
+            if (prev.length === 0) return data.tickers;
+            // merge
+            const map = new Map(prev.map(t => [t.symbol, t]));
+            data.tickers.forEach(t => map.set(t.symbol, { ...map.get(t.symbol), ...t }));
+            return Array.from(map.values());
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load initial tickers:", e);
+    }
+  }, []);
+
   useEffect(() => {
     checkAuth();
     loadPortfolio();
-  }, [checkAuth, loadPortfolio]);
+    loadInitialTickers();
+  }, [checkAuth, loadPortfolio, loadInitialTickers]);
 
-  // Periodic portfolio poll
+  // Periodic portfolio poll & ticker backup poll if WS is reconnecting
   useEffect(() => {
-    const interval = setInterval(loadPortfolio, 4000);
+    const interval = setInterval(() => {
+      loadPortfolio();
+      if (!wsConnected) {
+        loadInitialTickers();
+      }
+    }, 4000);
     return () => clearInterval(interval);
-  }, [loadPortfolio]);
+  }, [loadPortfolio, wsConnected, loadInitialTickers]);
 
   // Real-time WebSocket connection
   useEffect(() => {

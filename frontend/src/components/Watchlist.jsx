@@ -50,6 +50,39 @@ const DEFAULT_WATCHLISTS = [
 ];
 
 
+const FALLBACK_BASE_PRICES = {
+  'SPY': 560.50,
+  'QQQ': 485.20,
+  '^GSPC': 5650.00,
+  '^IXIC': 17750.00,
+  'AAPL': 225.50,
+  'TSLA': 248.30,
+  'NVDA': 118.80,
+  'MSFT': 428.10,
+  'AMZN': 186.40,
+  'GOOGL': 162.70,
+  'META': 512.90,
+  'AMD': 154.20,
+  'BTCUSDT': 63400.00,
+  'ETHUSDT': 2620.00,
+  'SOLUSDT': 145.50,
+  'BNBUSDT': 585.00,
+  'XRPUSDT': 0.5890,
+  'DOGEUSDT': 0.1085,
+  'ADAUSDT': 0.3540,
+  'AVAXUSDT': 27.80,
+  'XAU/USD': 2620.00,
+  'XAG/USD': 31.50,
+  'GLD': 242.00,
+  'SLV': 28.80,
+  'EUR/USD': 1.1160,
+  'GBP/USD': 1.3320,
+  'USD/JPY': 143.85,
+  'USD/INR': 83.55,
+  'AUD/USD': 0.6810,
+  'USD/CAD': 1.3570
+};
+
 export default function Watchlist({
   tickers = [],
   selectedSymbol,
@@ -112,7 +145,7 @@ export default function Watchlist({
         display: sym,
         name: sym,
         category: sym.endsWith('USDT') ? 'crypto' : (sym.includes('/') ? 'forex' : 'stock'),
-        price: 100.0,
+        price: FALLBACK_BASE_PRICES[sym] || 100.0,
         changePercent24h: 0.0
       };
       list.push(t);
