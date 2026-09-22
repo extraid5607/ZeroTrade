@@ -227,9 +227,13 @@ export default function App() {
   // Fetch portfolio state
   const loadPortfolio = useCallback(async () => {
     const token = localStorage.getItem('zerotrade_token');
+    if (!token) {
+      setPortfolio(null);
+      return;
+    }
     try {
       const res = await fetch('/api/portfolio', {
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();

@@ -24,11 +24,32 @@ if IS_POSTGRES:
     try:
         import psycopg2
         import psycopg2.extras
+        import psycopg2.pool
         # Normalize postgres:// to postgresql:// if needed
         PG_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
     except ImportError:
         logger.warning("psycopg2 not installed. Falling back to SQLite.")
         IS_POSTGRES = False
+
+_pg_pool: Optional[Any] = None
+
+def get_pg_pool():
+    global _pg_pool, IS_POSTGRES
+    if not IS_POSTGRES:
+        return None
+    if _pg_pool is None:
+        try:
+            _pg_pool = psycopg2.pool.ThreadedConnectionPool(
+                minconn=2,
+                maxconn=20,
+                dsn=PG_URL,
+                connect_timeout=6
+            )
+            logger.info("Initialized PostgreSQL persistent connection pool (2-20 warm connections).")
+        except Exception as e:
+            logger.error(f"Failed to initialize PostgreSQL connection pool: {e}. Falling back to SQLite.")
+            _pg_pool = None
+    return _pg_pool
 
 
 class PostgresCursorWrapper:
@@ -105,12 +126,13 @@ class PostgresConnectionWrapper:
 
 @contextmanager
 def get_db() -> Generator[Any, None, None]:
-    """Provide a transactional scope around database operations with automatic SQLite fallback."""
-    global IS_POSTGRES
-    if IS_POSTGRES:
+    """Provide a transactional scope using persistent connection pool (sub-millisecond latency)."""
+    pool = get_pg_pool()
+    if pool:
+        raw_conn = None
         try:
-            conn = psycopg2.connect(PG_URL, connect_timeout=6)
-            wrapped_conn = PostgresConnectionWrapper(conn)
+            raw_conn = pool.getconn()
+            wrapped_conn = PostgresConnectionWrapper(raw_conn)
             try:
                 yield wrapped_conn
                 wrapped_conn.commit()
@@ -118,10 +140,16 @@ def get_db() -> Generator[Any, None, None]:
                 wrapped_conn.rollback()
                 raise
             finally:
-                wrapped_conn.close()
+                if raw_conn:
+                    pool.putconn(raw_conn)
             return
         except Exception as pg_err:
-            logger.warning(f"PostgreSQL connection failed ({pg_err}). Falling back to SQLite.")
+            logger.warning(f"Postgres pool error: {pg_err}. Falling back to SQLite.")
+            if raw_conn and pool:
+                try:
+                    pool.putconn(raw_conn, close=True)
+                except Exception:
+                    pass
 
     # SQLite connection (always reliable)
     conn = sqlite3.connect(SQLITE_DB_PATH, check_same_thread=False)
