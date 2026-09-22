@@ -24,8 +24,21 @@ class LoginRequest(BaseModel):
     password: str
 
 
+import time
+
+_user_cache: dict = {}
+_USER_CACHE_TTL = 30  # seconds
+
+def invalidate_user_cache(user_id: Optional[int] = None):
+    """Invalidate cached user profile on order/cash/admin state changes."""
+    if user_id is None:
+        _user_cache.clear()
+    else:
+        _user_cache.pop(user_id, None)
+
+
 def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
-    """Dependency to extract and validate the JWT token from Bearer header."""
+    """Dependency to extract and validate the JWT token from Bearer header with fast memory caching."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentication token required.")
 
@@ -35,6 +48,11 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired session token.")
 
     user_id = int(payload["sub"])
+    now = time.time()
+    cached = _user_cache.get(user_id)
+    if cached and cached[1] > now:
+        return cached[0]
+
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE id = ?", (user_id,))
@@ -42,7 +60,9 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         if not user:
             raise HTTPException(status_code=401, detail="User account not found.")
 
-        return dict(user)
+        user_dict = dict(user)
+        _user_cache[user_id] = (user_dict, now + _USER_CACHE_TTL)
+        return user_dict
 
 
 @router.post("/signup")

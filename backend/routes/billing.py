@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 
 from backend.database import get_db
-from backend.routes.auth import get_current_user
+from backend.routes.auth import get_current_user, invalidate_user_cache
 from backend.config import MERCHANT_UPI_ID, MERCHANT_NAME, ADMIN_SECRET_KEY
 
 logger = logging.getLogger("zerotrade.billing")
@@ -278,6 +278,8 @@ def approve_payment_order(
             SET status = 'completed', virtual_cash_granted = ?, approved_at = CURRENT_TIMESTAMP, admin_notes = 'Verified by Admin'
             WHERE id = ?
         """, (target_cash, order_id))
+
+        invalidate_user_cache(user_id)
 
         return {
             "success": True,

@@ -737,8 +737,10 @@ export default function App() {
         symbol={orderModalConfig.symbol}
         contractInfo={orderModalConfig.contractInfo}
         activeTicker={tickers.find(t => t.symbol === orderModalConfig.symbol) || activeTicker}
-        portfolio={portfolio}
-        onOrderPlaced={() => {
+        onOrderPlaced={(orderData) => {
+          if (orderData?.remainingCash !== undefined) {
+            setPortfolio(prev => prev ? { ...prev, cash: orderData.remainingCash } : prev);
+          }
           loadPortfolio();
           setLastOrderUpdate(Date.now());
         }}

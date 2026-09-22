@@ -157,7 +157,7 @@ export default function OrderSlip({
         message: `${side} ${numQty} ${symbol} @ $${data.fillPrice || executionPrice} executed!`
       });
 
-      if (onOrderPlaced) onOrderPlaced();
+      if (onOrderPlaced) onOrderPlaced(data);
 
       // Reset quantity input
       setQuantity('1');

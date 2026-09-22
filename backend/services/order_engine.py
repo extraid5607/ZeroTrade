@@ -49,6 +49,13 @@ class OrderEngine:
         # Link callback with data_hub so price changes check limit orders
         data_hub.set_order_check_callback(self.check_limit_orders)
 
+    def _invalidate_cache(self, user_id: int):
+        try:
+            from backend.routes.auth import invalidate_user_cache
+            invalidate_user_cache(user_id)
+        except Exception:
+            pass
+
     def execute_market_order(
         self,
         user_id: int,
@@ -93,18 +100,27 @@ class OrderEngine:
         with get_db() as conn:
             cursor = conn.cursor()
 
-            # Fetch user cash
-            cursor.execute("SELECT virtual_cash FROM users WHERE id = ?", (user_id,))
-            user_row = cursor.fetchone()
-            if not user_row:
+            # Fetch user cash and existing position in a single combined query
+            cursor.execute("""
+                SELECT u.virtual_cash, p.id as pos_id, p.quantity as pos_qty, p.avg_entry_price, p.asset_class as pos_asset_class, p.leverage as pos_leverage
+                FROM users u
+                LEFT JOIN positions p ON p.user_id = u.id AND p.symbol = ?
+                WHERE u.id = ?
+            """, (symbol, user_id))
+            raw_row = cursor.fetchone()
+            if not raw_row:
                 raise ValueError("User not found.")
-            cash = user_row["virtual_cash"]
-
-            cursor.execute(
-                "SELECT id, quantity, avg_entry_price, asset_class, leverage FROM positions WHERE user_id = ? AND symbol = ?",
-                (user_id, symbol)
-            )
-            pos = cursor.fetchone()
+            user_and_pos = dict(raw_row)
+            cash = user_and_pos["virtual_cash"]
+            pos = None
+            if user_and_pos.get("pos_id") is not None:
+                pos = {
+                    "id": user_and_pos["pos_id"],
+                    "quantity": user_and_pos["pos_qty"],
+                    "avg_entry_price": user_and_pos["avg_entry_price"],
+                    "asset_class": user_and_pos["pos_asset_class"],
+                    "leverage": user_and_pos["pos_leverage"]
+                }
 
             if side == "BUY":
                 if not pos or pos["quantity"] >= 0:
@@ -167,6 +183,7 @@ class OrderEngine:
                         VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, 0.0, 0.0)
                     """, (user_id, order_id, symbol, asset_class, quantity, fill_price, fill_price, effective_leverage))
 
+                    self._invalidate_cache(user_id)
                     return {
                         "success": True,
                         "orderId": order_id,
@@ -223,6 +240,7 @@ class OrderEngine:
                             VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?)
                         """, (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
+                        self._invalidate_cache(user_id)
                         return {
                             "success": True,
                             "orderId": order_id,
@@ -285,6 +303,7 @@ class OrderEngine:
                             VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?)
                         """, (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
+                        self._invalidate_cache(user_id)
                         return {
                             "success": True,
                             "orderId": order_id,
@@ -344,6 +363,7 @@ class OrderEngine:
                             VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?)
                         """, (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
+                        self._invalidate_cache(user_id)
                         return {
                             "success": True,
                             "orderId": order_id,
@@ -406,6 +426,7 @@ class OrderEngine:
                             VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?)
                         """, (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
+                        self._invalidate_cache(user_id)
                         return {
                             "success": True,
                             "orderId": order_id,
@@ -482,6 +503,7 @@ class OrderEngine:
                         VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, 0.0, 0.0)
                     """, (user_id, order_id, symbol, asset_class, quantity, fill_price, fill_price, effective_leverage))
 
+                    self._invalidate_cache(user_id)
                     return {
                         "success": True,
                         "orderId": order_id,
@@ -557,6 +579,7 @@ class OrderEngine:
             """, (user_id, symbol, asset_class, side, quantity, limit_price, effective_leverage))
             order_id = cursor.lastrowid
 
+            self._invalidate_cache(user_id)
             return {
                 "success": True,
                 "orderId": order_id,
@@ -587,6 +610,7 @@ class OrderEngine:
             cursor.execute("UPDATE users SET virtual_cash = virtual_cash + ? WHERE id = ?", (refund, user_id))
 
             cursor.execute("UPDATE orders SET status = 'CANCELLED' WHERE id = ?", (order_id,))
+            self._invalidate_cache(user_id)
             return {
                 "success": True,
                 "message": f"Order #{order_id} cancelled successfully. Refunded ${refund:,.2f} margin.",
@@ -627,6 +651,7 @@ class OrderEngine:
                 WHERE id = ?
             """, (new_quantity, new_limit_price, order_id))
 
+            self._invalidate_cache(user_id)
             return {
                 "success": True,
                 "orderId": order_id,
@@ -1140,6 +1165,7 @@ class OrderEngine:
             cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
             cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
             cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
+            self._invalidate_cache(user_id)
             return {
                 "success": True,
                 "message": f"Portfolio successfully reset to ${INITIAL_VIRTUAL_CASH:,.2f}.",
