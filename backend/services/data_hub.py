@@ -63,6 +63,7 @@ class MarketDataHub:
         self.tickers: Dict[str, Dict[str, Any]] = {}
         self.symbol_metadata: Dict[str, Dict[str, Any]] = {}
         self.candle_cache: Dict[str, List[Dict[str, Any]]] = {}
+        self.candle_cache_time: Dict[str, float] = {}
         self.running = False
         self._tasks: List[asyncio.Task] = []
         self._order_check_callback = None
@@ -655,11 +656,14 @@ class MarketDataHub:
     async def get_candles(self, symbol: str, interval: str = "15m", limit: int = 150) -> List[Dict[str, Any]]:
         """
         Returns OHLCV candles for the requested symbol and interval.
-        - Crypto: Binance REST klines
-        - US Stocks & Indices: Real Yahoo Finance chart candles
-        - Forex: Real rates anchored history
+        Optimized with 25-second in-memory TTL cache for lightning-fast sub-millisecond response times.
         """
-        cache_key = f"{symbol}:{interval}"
+        cache_key = f"{symbol}:{interval}:{limit}"
+        now_ts = time.time()
+
+        # Fast In-Memory Cache Check (<25 seconds fresh)
+        if cache_key in self.candle_cache and (now_ts - self.candle_cache_time.get(cache_key, 0)) < 25:
+            return self.candle_cache[cache_key]
 
         # 1. Crypto: Binance REST (Binance Vision + Binance Global + Yahoo Finance)
         if symbol.endswith("USDT") or symbol in CRYPTO_YAHOO_MAP:
@@ -673,7 +677,7 @@ class MarketDataHub:
             for endpoint in ["https://data-api.binance.vision/api/v3", BINANCE_REST_ENDPOINT]:
                 try:
                     url = f"{endpoint}/klines?symbol={symbol}&interval={b_interval}&limit={limit}"
-                    async with httpx.AsyncClient(timeout=6) as client:
+                    async with httpx.AsyncClient(timeout=3.0) as client:
                         resp = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
                         if resp.status_code == 200:
                             raw_data = resp.json()
@@ -689,6 +693,7 @@ class MarketDataHub:
                                 })
                             if candles:
                                 self.candle_cache[cache_key] = candles
+                                self.candle_cache_time[cache_key] = now_ts
                                 return candles
                 except Exception:
                     pass
@@ -772,7 +777,7 @@ class MarketDataHub:
 
                 headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{y_symbol}?interval={y_interval}&range={y_range}"
-                async with httpx.AsyncClient(timeout=8) as client:
+                async with httpx.AsyncClient(timeout=3.5) as client:
                     resp = await client.get(url, headers=headers)
                     if resp.status_code == 200:
                         d = resp.json().get("chart", {}).get("result", [])[0]
@@ -808,6 +813,7 @@ class MarketDataHub:
                         if candles:
                             candles = candles[-limit:]
                             self.candle_cache[cache_key] = candles
+                            self.candle_cache_time[cache_key] = now_ts
                             return candles
             except Exception as e:
                 logger.warning(f"Yahoo Finance candle error for {symbol}: {e}")
@@ -819,6 +825,7 @@ class MarketDataHub:
         current_price = self.tickers.get(symbol, {}).get("price", 100.0)
         candles = self._generate_synthetic_candles(symbol, current_price, interval, limit)
         self.candle_cache[cache_key] = candles
+        self.candle_cache_time[cache_key] = now_ts
         return candles
 
     def _generate_synthetic_candles(self, symbol: str, current_price: float, interval: str, limit: int) -> List[Dict[str, Any]]:

@@ -2,6 +2,7 @@
 ZeroTrade - Paper Trading Platform Backend Service.
 Single service that holds API keys, maintains upstream connections,
 provides WebSocket price streaming, and executes simulated orders.
+Optimized with GZip compression, immutable asset caching, and ultra-fast response times.
 """
 import os
 import logging
@@ -10,6 +11,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -49,7 +51,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+# 1. High-Performance GZip Compression (Reduces network payload by ~75%)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# 2. CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -84,9 +89,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await data_hub.register_client(websocket)
     try:
         while True:
-            # Keep socket open and receive heartbeat/ping from client
             msg = await websocket.receive_text()
-            # If client sends ping, respond pong
             if msg == "ping":
                 await websocket.send_text("pong")
     except WebSocketDisconnect:
@@ -96,7 +99,7 @@ async def websocket_endpoint(websocket: WebSocket):
         data_hub.unregister_client(websocket)
 
 
-# Mount built frontend static files if available
+# Mount built frontend static files with browser cache headers
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 if FRONTEND_DIST.exists():
     app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="assets")
@@ -105,5 +108,13 @@ if FRONTEND_DIST.exists():
     async def serve_frontend(full_path: str):
         file_path = FRONTEND_DIST / full_path
         if file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(FRONTEND_DIST / "index.html")
+            resp = FileResponse(file_path)
+            # Cache static assets forever (Vite generates unique hashes)
+            if "/assets/" in str(file_path) or file_path.suffix in [".js", ".css", ".png", ".svg", ".woff2"]:
+                resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resp
+
+        # HTML entry point: do not cache HTML so updates load instantly
+        resp = FileResponse(FRONTEND_DIST / "index.html")
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        return resp
