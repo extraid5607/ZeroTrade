@@ -58,6 +58,31 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
         if not user:
+            # Check Firebase Firestore in case local DB restarted
+            try:
+                from backend.services.firebase_sync import get_firestore_client
+                f_db = get_firestore_client()
+                if f_db:
+                    doc = f_db.collection("users").document(str(user_id)).get()
+                    if doc.exists:
+                        data = doc.to_dict()
+                        cursor.execute("""
+                            INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(email) DO UPDATE SET
+                                virtual_cash = excluded.virtual_cash,
+                                display_name = excluded.display_name,
+                                is_admin = excluded.is_admin
+                        """, (
+                            data["id"], data["email"], data.get("password_hash", ""),
+                            data["display_name"], data["virtual_cash"], data.get("is_admin", 0)
+                        ))
+                        cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE id = ?", (user_id,))
+                        user = cursor.fetchone()
+            except Exception:
+                pass
+
+        if not user:
             raise HTTPException(status_code=401, detail="User account not found.")
 
         user_dict = dict(user)
@@ -122,6 +147,31 @@ def login(req: LoginRequest):
         cursor = conn.cursor()
         cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin FROM users WHERE email = ?", (email,))
         user = cursor.fetchone()
+        if not user:
+            # Check Firebase Firestore
+            try:
+                from backend.services.firebase_sync import get_firestore_client
+                f_db = get_firestore_client()
+                if f_db:
+                    docs = list(f_db.collection("users").where("email", "==", email).limit(1).stream())
+                    if docs:
+                        data = docs[0].to_dict()
+                        cursor.execute("""
+                            INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(email) DO UPDATE SET
+                                virtual_cash = excluded.virtual_cash,
+                                display_name = excluded.display_name,
+                                is_admin = excluded.is_admin
+                        """, (
+                            data["id"], data["email"], data.get("password_hash", ""),
+                            data["display_name"], data["virtual_cash"], data.get("is_admin", 0)
+                        ))
+                        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin FROM users WHERE email = ?", (email,))
+                        user = cursor.fetchone()
+            except Exception:
+                pass
+
         if not user or not verify_password(req.password, user["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid email or password.")
 
