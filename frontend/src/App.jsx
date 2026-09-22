@@ -11,6 +11,7 @@ import AccountView from './components/AccountView';
 import LeaderboardModal from './components/LeaderboardModal';
 import AuthModal from './components/AuthModal';
 import BillingModal from './components/BillingModal';
+import AdminPaymentsModal from './components/AdminPaymentsModal';
 import InstallAppModal from './components/InstallAppModal';
 import InstallAppBanner from './components/InstallAppBanner';
 import Toast from './components/Toast';
@@ -53,6 +54,7 @@ export default function App() {
     initialPlanId: 'reset_10k'
   });
 
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isLeaderboardOpen, setIsLeaderboardOpen] = useState(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
@@ -69,6 +71,7 @@ export default function App() {
     quote: selectedQuoteTicker,
     order: orderModalConfig.isOpen,
     billing: billingConfig.isOpen,
+    admin: isAdminModalOpen,
     auth: isAuthOpen,
     leaderboard: isLeaderboardOpen,
     install: isInstallModalOpen
@@ -77,6 +80,7 @@ export default function App() {
     quote: selectedQuoteTicker,
     order: orderModalConfig.isOpen,
     billing: billingConfig.isOpen,
+    admin: isAdminModalOpen,
     auth: isAuthOpen,
     leaderboard: isLeaderboardOpen,
     install: isInstallModalOpen
@@ -138,6 +142,10 @@ export default function App() {
       }
       if (m.billing) {
         setBillingConfig(prev => ({ ...prev, isOpen: false }));
+        return;
+      }
+      if (m.admin) {
+        setIsAdminModalOpen(false);
         return;
       }
       if (m.auth) {
@@ -436,6 +444,7 @@ export default function App() {
         user={user}
         tickers={tickers}
         onOpenBillingModal={openBillingModal}
+        onOpenAdminModal={() => setIsAdminModalOpen(true)}
         onOpenLeaderboard={openLeaderboard}
         onOpenAuth={openAuth}
         onLogout={handleLogout}
@@ -546,6 +555,7 @@ export default function App() {
                 user={user}
                 portfolio={portfolio}
                 onOpenBillingModal={openBillingModal}
+                onOpenAdminModal={() => setIsAdminModalOpen(true)}
                 onOpenLeaderboard={openLeaderboard}
                 onOpenAuth={openAuth}
                 onLogout={handleLogout}
@@ -647,6 +657,7 @@ export default function App() {
             user={user}
             portfolio={portfolio}
             onOpenBillingModal={openBillingModal}
+            onOpenAdminModal={() => setIsAdminModalOpen(true)}
             onOpenLeaderboard={openLeaderboard}
             onOpenAuth={openAuth}
             onLogout={handleLogout}
@@ -719,11 +730,17 @@ export default function App() {
           loadPortfolio();
           setLastOrderUpdate(Date.now());
           showToast({
-            type: 'success',
-            title: 'Plan Activated!',
-            message: data.message || 'Payment confirmed and capital updated!'
+            type: 'info',
+            title: 'Payment Submitted!',
+            message: 'Your payment reference has been submitted. Status: Pending Bank Verification.'
           });
         }}
+      />
+
+      <AdminPaymentsModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+        user={user}
       />
 
       <AuthModal

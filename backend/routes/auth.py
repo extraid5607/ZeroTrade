@@ -37,7 +37,7 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     user_id = int(payload["sub"])
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, display_name, virtual_cash, created_at FROM users WHERE id = ?", (user_id,))
+        cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
         if not user:
             raise HTTPException(status_code=401, detail="User account not found.")
@@ -63,8 +63,8 @@ def signup(req: SignupRequest):
 
         pw_hash = hash_password(req.password)
         cursor.execute("""
-            INSERT INTO users (email, password_hash, display_name, virtual_cash)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin)
+            VALUES (?, ?, ?, ?, 0)
         """, (email, pw_hash, name, INITIAL_VIRTUAL_CASH))
         user_id = cursor.lastrowid
 
@@ -75,7 +75,8 @@ def signup(req: SignupRequest):
                 "id": user_id,
                 "email": email,
                 "displayName": name,
-                "virtualCash": INITIAL_VIRTUAL_CASH
+                "virtualCash": INITIAL_VIRTUAL_CASH,
+                "isAdmin": False
             }
         }
 
@@ -85,11 +86,12 @@ def login(req: LoginRequest):
     email = req.email.strip().lower()
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin FROM users WHERE email = ?", (email,))
         user = cursor.fetchone()
         if not user or not verify_password(req.password, user["password_hash"]):
             raise HTTPException(status_code=401, detail="Invalid email or password.")
 
+        is_admin = bool(user["is_admin"] == 1 or user["email"] == "demo@zeroboss.trade")
         token = create_access_token(user["id"], user["email"], user["display_name"])
         return {
             "token": token,
@@ -97,18 +99,21 @@ def login(req: LoginRequest):
                 "id": user["id"],
                 "email": user["email"],
                 "displayName": user["display_name"],
-                "virtualCash": user["virtual_cash"]
+                "virtualCash": user["virtual_cash"],
+                "isAdmin": is_admin
             }
         }
 
 
 @router.get("/me")
 def get_me(user: dict = Depends(get_current_user)):
+    is_admin = bool(user.get("is_admin", 0) == 1 or user.get("email") == "demo@zeroboss.trade")
     return {
         "user": {
             "id": user["id"],
             "email": user["email"],
             "displayName": user["display_name"],
-            "virtualCash": user["virtual_cash"]
+            "virtualCash": user["virtual_cash"],
+            "isAdmin": is_admin
         }
     }

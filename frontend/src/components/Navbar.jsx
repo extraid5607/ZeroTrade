@@ -13,7 +13,8 @@ import {
   ListOrdered,
   Search,
   DollarSign,
-  Sparkles
+  Sparkles,
+  ShieldCheck
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -24,6 +25,7 @@ export default function Navbar({
   user,
   tickers = [],
   onOpenBillingModal,
+  onOpenAdminModal,
   onOpenLeaderboard,
   onOpenAuth,
   onLogout,
@@ -188,6 +190,18 @@ export default function Navbar({
             {/* Right Action Items */}
             <div className="flex items-center gap-2 sm:gap-3">
               
+              {/* Admin Desk Button (For Merchant Admins) */}
+              {user?.isAdmin && onOpenAdminModal && (
+                <button
+                  onClick={onOpenAdminModal}
+                  className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5"
+                  title="Admin Payment Verification Desk"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Admin Desk</span>
+                </button>
+              )}
+
               {/* Upgrade / Billing Button */}
               {onOpenBillingModal && (
                 <button

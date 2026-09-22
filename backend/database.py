@@ -106,11 +106,14 @@ def init_db():
 
         # Safe column migrations for existing SQLite databases
         for tbl, col, col_def in [
+            ("users", "is_admin", "INTEGER DEFAULT 0"),
             ("positions", "leverage", "REAL DEFAULT 1.0"),
             ("orders", "leverage", "REAL DEFAULT 1.0"),
             ("transactions", "leverage", "REAL DEFAULT 1.0"),
             ("transactions", "entry_price", "REAL DEFAULT 0.0"),
             ("transactions", "pnl_percent", "REAL DEFAULT 0.0"),
+            ("payment_orders", "admin_notes", "TEXT"),
+            ("payment_orders", "approved_at", "TIMESTAMP"),
         ]:
             try:
                 cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {col_def}")
@@ -131,7 +134,7 @@ def init_db():
         );
         """)
 
-        # UPI Payment & Plan Orders
+        # UPI Payment & Plan Orders (defaults to 'pending' verification)
         cursor.execute("""
         CREATE TABLE IF NOT EXISTS payment_orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -141,12 +144,19 @@ def init_db():
             amount_inr REAL NOT NULL,
             virtual_cash_granted REAL NOT NULL DEFAULT 0.0,
             upi_id TEXT NOT NULL,
-            utr_ref TEXT,
-            status TEXT NOT NULL DEFAULT 'completed',
+            utr_ref TEXT UNIQUE,
+            status TEXT NOT NULL DEFAULT 'pending',
+            admin_notes TEXT,
+            approved_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         );
         """)
+
+        try:
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_orders_utr ON payment_orders(utr_ref);")
+        except Exception:
+            pass
 
         # Custom user watchlists
         cursor.execute("""
@@ -161,18 +171,19 @@ def init_db():
         );
         """)
 
-        # Seed initial demo trader user if none exists
+        # Seed initial demo trader user if none exists (marked as admin)
         cursor.execute("SELECT id FROM users WHERE email = 'demo@zeroboss.trade'")
         demo_user = cursor.fetchone()
         if not demo_user:
             default_pw_hash = hash_password("zerotrade123")
             cursor.execute("""
-            INSERT INTO users (email, password_hash, display_name, virtual_cash)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin)
+            VALUES (?, ?, ?, ?, 1)
             """, ("demo@zeroboss.trade", default_pw_hash, "ZeroBoss Trader", INITIAL_VIRTUAL_CASH))
             demo_user_id = cursor.lastrowid
         else:
             demo_user_id = demo_user["id"]
+            cursor.execute("UPDATE users SET is_admin = 1 WHERE email = 'demo@zeroboss.trade'")
 
         # Seed initial leaderboard profiles to make ranking vibrant
         mock_traders = [

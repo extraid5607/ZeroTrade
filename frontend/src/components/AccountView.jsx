@@ -37,7 +37,8 @@ export default function AccountView({
   onLogout,
   theme,
   toggleTheme,
-  onOpenInstallModal
+  onOpenInstallModal,
+  onOpenAdminModal
 }) {
   const [accountSubTab, setAccountSubTab] = useState('overview'); // 'overview' | 'pnl_report'
   const cash = Number(portfolio?.cash ?? 10000);
@@ -256,6 +257,30 @@ export default function AccountView({
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 transition-colors" />
+              </div>
+            )}
+
+            {/* Admin Payment Verification Desk (Owner / Admin Portal) */}
+            {onOpenAdminModal && (
+              <div 
+                onClick={onOpenAdminModal}
+                className="p-4 flex items-center justify-between hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-colors group bg-indigo-50/20 dark:bg-indigo-950/10"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center text-white shadow-xs">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <span>Admin Payment Verification Desk</span>
+                      <span className="text-[10px] font-bold px-2 py-0.2 rounded-md bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                        Merchant Admin
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400 font-normal">Verify incoming 12-digit UTR bank transfers &amp; approve capital credits</div>
+                  </div>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-indigo-500 transition-colors" />
               </div>
             )}
 

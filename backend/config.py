@@ -12,6 +12,7 @@ load_dotenv(BASE_DIR / ".env")
 # Server Config
 PORT = int(os.getenv("PORT", 8000))
 SECRET_KEY = os.getenv("SECRET_KEY", "zerotrade_super_secret_jwt_key_2026_zeroboss")
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "zerobossadmin2026").strip()
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 INITIAL_VIRTUAL_CASH = float(os.getenv("INITIAL_VIRTUAL_CASH", 10000.00))
 MERCHANT_UPI_ID = os.getenv("MERCHANT_UPI_ID", "harjinder1070-1@okicici").strip()

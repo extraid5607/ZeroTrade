@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   X, 
   Check, 
@@ -13,7 +13,13 @@ import {
   Sparkles,
   ExternalLink,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  History,
+  RefreshCw,
+  Info
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 
@@ -30,12 +36,12 @@ const PLANS = [
     popular: true,
     icon: RotateCcw,
     color: 'from-blue-600 to-indigo-600',
-    description: 'Instant reset of your depleted account back to $10,000.00 capital.',
+    description: 'Restore your blown account back to $10,000.00 capital upon UPI verification.',
     features: [
       'Instant $10,000.00 virtual capital reset',
       'Wipe all liquidated / negative positions',
       'Unlocks 20x Futures & US Options',
-      'Instant UPI Activation'
+      'Verified UPI Bank Confirmation'
     ]
   },
   {
@@ -105,7 +111,11 @@ export default function BillingModal({
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
   const [successData, setSuccessData] = useState(null);
-  const [step, setStep] = useState('select'); // 'select' | 'pay' | 'success'
+  const [step, setStep] = useState('select'); // 'select' | 'pay' | 'submitted' | 'history'
+  
+  // User payment history state
+  const [historyOrders, setHistoryOrders] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   useEffect(() => {
     if (initialPlanId) {
@@ -122,6 +132,32 @@ export default function BillingModal({
       setCopied(false);
     }
   }, [isOpen]);
+
+  const fetchMyOrders = useCallback(async () => {
+    if (!user) return;
+    setLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('zerotrade_token');
+      if (!token) return;
+      const res = await fetch('/api/billing/my-orders', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setHistoryOrders(data.orders || []);
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (step === 'history' && isOpen) {
+      fetchMyOrders();
+    }
+  }, [step, isOpen, fetchMyOrders]);
 
   if (!isOpen) return null;
 
@@ -146,10 +182,18 @@ export default function BillingModal({
     setError(null);
   };
 
+  const handleUtrChange = (e) => {
+    // Only allow numeric digits and limit to 12 chars
+    const numeric = e.target.value.replace(/\D/g, '').slice(0, 12);
+    setUtrRef(numeric);
+    if (error) setError(null);
+  };
+
   const handleSubmitPayment = async (e) => {
     e.preventDefault();
-    if (!utrRef || utrRef.trim().length < 4) {
-      setError("Please enter a valid 12-digit UPI Transaction Reference (UTR) Number.");
+    const cleanUtr = utrRef.trim();
+    if (!cleanUtr || cleanUtr.length !== 12) {
+      setError("Please enter a valid 12-digit numeric UPI Transaction Reference (UTR) Number.");
       return;
     }
 
@@ -166,18 +210,18 @@ export default function BillingModal({
         },
         body: JSON.stringify({
           plan_id: selectedPlan.id,
-          utr_ref: utrRef.trim(),
+          utr_ref: cleanUtr,
           amount_inr: selectedPlan.priceInr
         })
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || 'Payment verification failed');
+        throw new Error(data.detail || 'Payment submission failed');
       }
 
       setSuccessData(data);
-      setStep('success');
+      setStep('submitted');
       onPaymentSuccess?.(data);
     } catch (err) {
       setError(err.message || 'Payment submission failed. Please check UTR number.');
@@ -204,23 +248,41 @@ export default function BillingModal({
             <div>
               <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
                 {step === 'select' && 'Capital Packages & Account Resets'}
-                {step === 'pay' && 'UPI Payment & Instant Activation'}
-                {step === 'success' && 'Payment Verified & Capital Activated!'}
+                {step === 'pay' && 'UPI Payment & Verification'}
+                {step === 'submitted' && 'Payment Submitted — Verification in Progress'}
+                {step === 'history' && 'My Payment Orders & Verification Status'}
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {step === 'select' && 'Select an evaluation challenge or instant reset token'}
+                {step === 'select' && 'Choose an evaluation challenge tier or instant reset token'}
                 {step === 'pay' && `Pay ₹${selectedPlan.priceInr} via any UPI App (GPay, PhonePe, Paytm)`}
-                {step === 'success' && `Your account has been credited with $${selectedPlan.virtualCash.toLocaleString('en-US')} virtual funds`}
+                {step === 'submitted' && 'Bank verification takes 5–15 minutes'}
+                {step === 'history' && 'View pending approvals and past transaction receipts'}
               </p>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-surface-darkHover text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {user && step !== 'history' && (
+              <button
+                onClick={() => {
+                  setStep('history');
+                  fetchMyOrders();
+                }}
+                className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-surface-darkBorder hover:bg-gray-100 dark:hover:bg-surface-darkHover text-gray-600 dark:text-gray-300 text-xs font-semibold flex items-center gap-1 transition-colors"
+                title="View My Payment History"
+              >
+                <History className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">My Orders</span>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-surface-darkHover text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}
@@ -313,7 +375,7 @@ export default function BillingModal({
                   onClick={handleProceedToPay}
                   className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
                 >
-                  <span>Pay ₹{selectedPlan.priceInr} via UPI</span>
+                  <span>Proceed to Pay ₹{selectedPlan.priceInr} via UPI</span>
                   <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                 </button>
 
@@ -369,8 +431,8 @@ export default function BillingModal({
                       includeMargin={true}
                     />
                   </div>
-                  <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mt-2 flex items-center gap-1.5">
-                    <QrCode className="w-3.5 h-3.5 text-blue-600" />
+                  <span className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 mt-2 flex items-center gap-1.5 text-center">
+                    <QrCode className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
                     Scan with Google Pay, PhonePe, Paytm, or BHIM
                   </span>
                 </div>
@@ -420,8 +482,8 @@ export default function BillingModal({
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-gray-400 bg-gray-50 dark:bg-surface-darkCard/40 p-2.5 rounded-xl border border-gray-100 dark:border-surface-darkBorder">
-                    💡 After completing payment in your UPI app, copy the <strong>12-digit UTR / Transaction Reference ID</strong> and paste below to activate immediately.
+                  <div className="text-[11px] text-gray-500 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-950/20 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
+                    🛡️ <strong>Anti-Fraud Verification:</strong> After transferring ₹{selectedPlan.priceInr}, copy the <strong>exact 12-digit UTR</strong> from your UPI app and submit below. Your capital will be unlocked upon bank statement match.
                   </div>
 
                 </div>
@@ -432,24 +494,36 @@ export default function BillingModal({
               <form onSubmit={handleSubmitPayment} className="pt-2 flex flex-col gap-3">
                 
                 {error && (
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-600 dark:text-rose-400 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-600 dark:text-rose-400 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                     <span>{error}</span>
                   </div>
                 )}
 
                 <div>
-                  <label className="text-xs font-semibold text-gray-700 dark:text-gray-300 block mb-1">
-                    UPI Transaction Reference / UTR Number <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      12-Digit UPI Transaction Reference (UTR) <span className="text-rose-500">*</span>
+                    </label>
+                    <span className={`text-[11px] font-mono font-semibold ${
+                      utrRef.length === 12 ? 'text-emerald-500' : 'text-gray-400'
+                    }`}>
+                      {utrRef.length}/12 digits {utrRef.length === 12 && '✓'}
+                    </span>
+                  </div>
+                  
                   <input
                     type="text"
                     required
+                    maxLength={12}
                     value={utrRef}
-                    onChange={(e) => setUtrRef(e.target.value)}
-                    placeholder="e.g. 426189304812 (12-digit number)"
-                    className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    onChange={handleUtrChange}
+                    placeholder="e.g. 426189304812"
+                    className="w-full px-3.5 py-2.5 text-sm rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono tracking-wider"
                   />
+                  <span className="text-[10px] text-gray-400 mt-1 block">
+                    Find this 12-digit number under "UPI Transaction ID / Ref No" in your Google Pay, PhonePe, or Paytm receipt.
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -463,12 +537,19 @@ export default function BillingModal({
 
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || utrRef.length !== 12}
                     className={`flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-emerald-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 ${
-                      submitting ? 'opacity-75 cursor-not-allowed' : ''
+                      submitting || utrRef.length !== 12 ? 'opacity-60 cursor-not-allowed' : ''
                     }`}
                   >
-                    {submitting ? 'Verifying Transaction...' : `Confirm ₹${selectedPlan.priceInr} Payment`}
+                    {submitting ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>Submitting for Verification...</span>
+                      </>
+                    ) : (
+                      <span>Submit 12-Digit UTR Reference</span>
+                    )}
                   </button>
                 </div>
 
@@ -478,54 +559,167 @@ export default function BillingModal({
           )}
 
           {/* ========================================================================= */}
-          {/* STEP 3: SUCCESS CONFIRMATION                                             */}
+          {/* STEP 3: SUBMITTED (PENDING VERIFICATION)                                  */}
           {/* ========================================================================= */}
-          {step === 'success' && (
-            <div className="py-6 flex flex-col items-center justify-center text-center gap-4">
+          {step === 'submitted' && (
+            <div className="py-4 flex flex-col items-center justify-center text-center gap-4">
               
-              <div className="w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500 flex items-center justify-center text-emerald-500 shadow-xl shadow-emerald-500/20 animate-in zoom-in-50 duration-300">
-                <Check className="w-8 h-8 stroke-[3]" />
+              <div className="w-16 h-16 rounded-full bg-amber-500/15 border-2 border-amber-500 flex items-center justify-center text-amber-500 shadow-xl shadow-amber-500/20 animate-in zoom-in-50 duration-300">
+                <Clock className="w-8 h-8 stroke-[2.5]" />
               </div>
 
               <div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                  Payment Confirmed!
+                <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-800">
+                  STATUS: PENDING BANK VERIFICATION
+                </span>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mt-2">
+                  Payment Reference Submitted!
                 </h3>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-sm">
-                  {successData?.message || `Your account has been granted $${selectedPlan.virtualCash.toLocaleString('en-US')} virtual trading capital.`}
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-md">
+                  Our verification desk is matching your ₹{selectedPlan.priceInr} deposit with ICICI bank records. Your <strong>${selectedPlan.virtualCash.toLocaleString('en-US')}</strong> capital will be credited automatically within <strong>5–15 minutes</strong>.
                 </p>
               </div>
 
               {/* Receipt Summary Card */}
-              <div className="w-full max-w-sm p-4 rounded-2xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-xs flex flex-col gap-2">
+              <div className="w-full max-w-sm p-4 rounded-2xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-xs flex flex-col gap-2.5 text-left">
                 <div className="flex items-center justify-between text-gray-500">
-                  <span>Receipt Order ID:</span>
-                  <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">#ZT-{successData?.orderId || '108'}</span>
+                  <span>Order Reference:</span>
+                  <span className="font-mono font-bold text-gray-900 dark:text-white">#ZT-{successData?.orderId || 'NEW'}</span>
                 </div>
                 <div className="flex items-center justify-between text-gray-500">
-                  <span>Activated Plan:</span>
+                  <span>Selected Package:</span>
                   <span className="font-bold text-blue-600 dark:text-blue-400">{selectedPlan.name}</span>
                 </div>
                 <div className="flex items-center justify-between text-gray-500">
-                  <span>Paid Amount:</span>
+                  <span>Amount to Verify:</span>
                   <span className="font-bold text-gray-900 dark:text-white">₹{selectedPlan.priceInr}.00</span>
                 </div>
                 <div className="flex items-center justify-between text-gray-500">
-                  <span>New Virtual Cash:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">${selectedPlan.virtualCash.toLocaleString('en-US')}.00</span>
+                  <span>Submitted UTR:</span>
+                  <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-900">
+                    {successData?.utrRef || utrRef}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-gray-500">
-                  <span>UPI ID Used:</span>
-                  <span className="font-mono text-[11px] text-gray-700 dark:text-gray-300">{MERCHANT_UPI}</span>
+                  <span>Capital to Unlock:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">+${selectedPlan.virtualCash.toLocaleString('en-US')}.00</span>
                 </div>
               </div>
 
-              <button
-                onClick={onClose}
-                className="w-full max-w-sm py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 transition-all"
-              >
-                Start Trading Now
-              </button>
+              <div className="flex items-center gap-2 w-full max-w-sm">
+                <button
+                  onClick={() => {
+                    setStep('history');
+                    fetchMyOrders();
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkCard text-gray-700 dark:text-gray-200 text-xs font-bold hover:bg-gray-100 dark:hover:bg-surface-darkHover transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <History className="w-4 h-4" />
+                  <span>Check Live Status</span>
+                </button>
+
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider shadow-md shadow-blue-500/25 transition-all"
+                >
+                  Close &amp; Continue
+                </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* STEP 4: USER ORDER HISTORY & VERIFICATION STATUS                         */}
+          {/* ========================================================================= */}
+          {step === 'history' && (
+            <div className="flex flex-col gap-3">
+              
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => setStep('select')}
+                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-semibold"
+                >
+                  &larr; Back to Buy Packages
+                </button>
+
+                <button
+                  onClick={fetchMyOrders}
+                  disabled={loadingHistory}
+                  className="p-1.5 rounded-lg border border-gray-200 dark:border-surface-darkBorder hover:bg-gray-100 dark:hover:bg-surface-darkHover text-gray-600 dark:text-gray-300 text-xs flex items-center gap-1"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? 'animate-spin text-blue-500' : ''}`} />
+                  <span>Refresh Status</span>
+                </button>
+              </div>
+
+              {loadingHistory && historyOrders.length === 0 ? (
+                <div className="py-8 text-center text-gray-400 text-xs">
+                  Loading your orders...
+                </div>
+              ) : historyOrders.length === 0 ? (
+                <div className="py-8 text-center text-gray-400 text-xs">
+                  No payment orders found. Select a package to get started.
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[50vh] overflow-y-auto">
+                  {historyOrders.map((ord) => {
+                    const isPend = ord.status === 'pending';
+                    const isComp = ord.status === 'completed';
+                    const isRej = ord.status === 'rejected';
+
+                    return (
+                      <div
+                        key={ord.id}
+                        className={`p-3 rounded-xl border text-xs flex flex-col gap-2 ${
+                          isPend
+                            ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/50'
+                            : isComp
+                            ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/50'
+                            : 'bg-rose-50/40 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/50'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="font-bold text-gray-900 dark:text-white">
+                            {ord.plan_name}
+                          </div>
+                          <div>
+                            {isPend && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span>Verification Pending</span>
+                              </span>
+                            )}
+                            {isComp && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Approved &amp; Unlocked</span>
+                              </span>
+                            )}
+                            {isRej && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-300 flex items-center gap-1">
+                                <XCircle className="w-3 h-3" />
+                                <span>Rejected</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-gray-500 dark:text-gray-400 text-[11px]">
+                          <span>Amount: ₹{ord.amount_inr} &bull; UTR: <strong className="font-mono text-gray-800 dark:text-gray-200">{ord.utr_ref}</strong></span>
+                          <span>{ord.created_at ? new Date(ord.created_at).toLocaleDateString() : ''}</span>
+                        </div>
+
+                        {ord.admin_notes && (
+                          <div className="text-[10px] italic text-gray-500">
+                            Admin Note: {ord.admin_notes}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
             </div>
           )}
