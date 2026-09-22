@@ -260,8 +260,8 @@ export default function AccountView({
               </div>
             )}
 
-            {/* Admin Payment Verification Desk (Owner / Admin Portal) */}
-            {onOpenAdminModal && (
+            {/* Admin Payment Verification Desk (Strictly for Merchant Admin only) */}
+            {user?.isAdmin && onOpenAdminModal && (
               <div 
                 onClick={onOpenAdminModal}
                 className="p-4 flex items-center justify-between hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 cursor-pointer transition-colors group bg-indigo-50/20 dark:bg-indigo-950/10"
