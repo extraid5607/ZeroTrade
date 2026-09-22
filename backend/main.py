@@ -43,8 +43,10 @@ async def lifespan(app: FastAPI):
     logger.info("Initializing database...")
     try:
         init_db()
+        from backend.services.firebase_sync import restore_from_firebase
+        restore_from_firebase()
     except Exception as e:
-        logger.error(f"Database init exception: {e}")
+        logger.error(f"Database init / Firebase restore exception: {e}")
 
     logger.info("Starting MarketDataHub background price feeds...")
     try:

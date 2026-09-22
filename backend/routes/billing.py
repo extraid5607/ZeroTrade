@@ -174,6 +174,22 @@ def submit_payment(
         """, (user_id, plan_id, plan_name, amount_inr, MERCHANT_UPI_ID, utr_clean))
         order_id = cursor.lastrowid
 
+        try:
+            from backend.services.firebase_sync import sync_payment_order
+            sync_payment_order({
+                "id": order_id,
+                "user_id": user_id,
+                "plan_id": plan_id,
+                "plan_name": plan_name,
+                "amount_inr": amount_inr,
+                "virtual_cash_granted": 0.0,
+                "upi_id": MERCHANT_UPI_ID,
+                "utr_ref": utr_clean,
+                "status": "pending"
+            })
+        except Exception:
+            pass
+
         return {
             "success": True,
             "status": "pending",
@@ -280,6 +296,27 @@ def approve_payment_order(
         """, (target_cash, order_id))
 
         invalidate_user_cache(user_id)
+
+        try:
+            from backend.services.firebase_sync import sync_payment_order, sync_user
+            sync_payment_order({
+                "id": order_id,
+                "user_id": user_id,
+                "plan_id": order["plan_id"],
+                "plan_name": order["plan_name"],
+                "amount_inr": order["amount_inr"],
+                "virtual_cash_granted": target_cash,
+                "upi_id": order["upi_id"],
+                "utr_ref": order["utr_ref"],
+                "status": "completed",
+                "admin_notes": "Verified by Admin"
+            })
+            cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, password_hash FROM users WHERE id = ?", (user_id,))
+            u_row = cursor.fetchone()
+            if u_row:
+                sync_user(dict(u_row))
+        except Exception:
+            pass
 
         return {
             "success": True,

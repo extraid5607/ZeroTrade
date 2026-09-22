@@ -56,6 +56,20 @@ class OrderEngine:
         except Exception:
             pass
 
+        try:
+            from backend.services.firebase_sync import sync_user, sync_position
+            with get_db() as conn:
+                c = conn.cursor()
+                c.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin FROM users WHERE id = ?", (user_id,))
+                u = c.fetchone()
+                if u:
+                    sync_user(dict(u))
+                c.execute("SELECT * FROM positions WHERE user_id = ?", (user_id,))
+                for p in c.fetchall():
+                    sync_position(user_id, p["symbol"], dict(p))
+        except Exception:
+            pass
+
     def execute_market_order(
         self,
         user_id: int,

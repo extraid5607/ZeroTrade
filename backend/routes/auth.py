@@ -89,6 +89,20 @@ def signup(req: SignupRequest):
         user_id = cursor.lastrowid
 
         token = create_access_token(user_id, email, name)
+
+        try:
+            from backend.services.firebase_sync import sync_user
+            sync_user({
+                "id": user_id,
+                "email": email,
+                "password_hash": pw_hash,
+                "display_name": name,
+                "virtual_cash": INITIAL_VIRTUAL_CASH,
+                "is_admin": 0
+            })
+        except Exception:
+            pass
+
         return {
             "token": token,
             "user": {
