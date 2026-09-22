@@ -15,12 +15,26 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from backend.database import init_db
+import asyncio
+from backend.database import init_db, get_db
 from backend.services.data_hub import data_hub
 from backend.routes import auth, markets, trading, leaderboard, options, billing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("zerotrade.main")
+
+
+async def _db_keep_alive_loop():
+    """Keep remote PostgreSQL connection pool warm to prevent Neon cold starts and sleep."""
+    while True:
+        await asyncio.sleep(180)  # Ping every 3 minutes
+        try:
+            with get_db() as conn:
+                c = conn.cursor()
+                c.execute("SELECT 1")
+                c.fetchone()
+        except Exception:
+            pass
 
 
 @asynccontextmanager
@@ -38,8 +52,11 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"MarketDataHub start error: {e}")
 
+    keep_alive_task = asyncio.create_task(_db_keep_alive_loop())
+
     yield
     # Shutdown
+    keep_alive_task.cancel()
     logger.info("Shutting down MarketDataHub...")
     await data_hub.stop()
 

@@ -10,6 +10,8 @@ export default function OrderModal({
   symbol,
   activeTicker,
   portfolio,
+  user = null,
+  onOpenAuth = null,
   onOrderPlaced,
   onShowToast,
   contractInfo = null // for options: { type: 'CALL'|'PUT', strike, expiry, price }
@@ -41,7 +43,7 @@ export default function OrderModal({
   const isLongPosition = currentPositionQty > 0;
 
   const livePrice = Number(contractInfo?.price || (activeTicker?.price && activeTicker.symbol === symbol ? activeTicker.price : null) || existingPos?.currentPrice || existingPos?.avgEntryPrice || activeTicker?.price || 100.0);
-  const cash = Number(portfolio?.cash || 0.0);
+  const cash = Number(portfolio?.cash ?? (user?.virtualCash ?? 10000.0));
 
   useEffect(() => {
     if (isOpen) {
@@ -162,14 +164,22 @@ export default function OrderModal({
       return;
     }
 
+    const token = localStorage.getItem('zerotrade_token');
+    if (!token) {
+      setError("Please sign in to execute live simulated trades.");
+      if (onOpenAuth) {
+        onOpenAuth();
+      }
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const token = localStorage.getItem('zerotrade_token');
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           symbol: tradeSymbol,
@@ -196,7 +206,7 @@ export default function OrderModal({
         message: `${side} ${numQty} ${tradeSymbol} @ $${data.fillPrice || execPrice} successful!`
       });
 
-      onOrderPlaced?.();
+      onOrderPlaced?.(data);
       onClose();
     } catch (err) {
       setError(err.message);
