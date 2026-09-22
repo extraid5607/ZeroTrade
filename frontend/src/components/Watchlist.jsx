@@ -20,7 +20,12 @@ const DEFAULT_WATCHLISTS = [
   {
     id: 'wl-1',
     name: 'Watchlist 1',
-    symbols: ['SPY', '^GSPC', 'QQQ', '^IXIC', 'AAPL', 'TSLA', 'NVDA', 'BTCUSDT', 'ETHUSDT', 'EUR/USD']
+    symbols: ['SPY', '^GSPC', 'AAPL', 'NVDA', 'XAU/USD', 'XAG/USD', 'BTCUSDT', 'ETHUSDT', 'EUR/USD']
+  },
+  {
+    id: 'wl-commodities',
+    name: 'Commodities',
+    symbols: ['XAU/USD', 'XAG/USD', 'GLD', 'SLV']
   },
   {
     id: 'wl-indices',
@@ -43,6 +48,7 @@ const DEFAULT_WATCHLISTS = [
     symbols: ['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/INR', 'AUD/USD', 'USD/CAD']
   }
 ];
+
 
 export default function Watchlist({
   tickers = [],
@@ -256,7 +262,7 @@ export default function Watchlist({
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search & Add eg. SPX, AAPL, BTC, EUR/USD, TSLA, NVDA..."
+            placeholder="Search & Add eg. GOLD, SILVER, XAU/USD, AAPL, BTC, NVDA..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-10 py-2 text-xs sm:text-[13px] font-normal rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all"
@@ -503,7 +509,8 @@ export default function Watchlist({
 
               const exchange = t.category === 'stock' || t.category === 'index' 
                 ? 'NASDAQ' 
-                : (t.category === 'crypto' ? 'BINANCE' : 'FOREX');
+                : (t.category === 'crypto' ? 'BINANCE' : (t.category === 'commodity' ? 'COMMODITY' : 'FOREX'));
+
 
               return (
                 <div

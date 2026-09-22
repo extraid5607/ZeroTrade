@@ -77,3 +77,11 @@ DEFAULT_FOREX = [
     {"symbol": "AUD/USD", "name": "Australian Dollar / US Dollar", "category": "forex", "currency": "USD", "basePrice": 0.6810},
     {"symbol": "USD/CAD", "name": "US Dollar / Canadian Dollar", "category": "forex", "currency": "CAD", "basePrice": 1.3570},
 ]
+
+DEFAULT_COMMODITIES = [
+    {"symbol": "XAU/USD", "name": "Gold Spot / US Dollar", "display": "Gold (XAU/USD)", "category": "commodity", "currency": "USD", "basePrice": 4340.00},
+    {"symbol": "XAG/USD", "name": "Silver Spot / US Dollar", "display": "Silver (XAG/USD)", "category": "commodity", "currency": "USD", "basePrice": 65.50},
+    {"symbol": "GLD", "name": "SPDR Gold Shares ETF", "display": "Gold ETF (GLD)", "category": "commodity", "currency": "USD", "basePrice": 398.50},
+    {"symbol": "SLV", "name": "iShares Silver Trust ETF", "display": "Silver ETF (SLV)", "category": "commodity", "currency": "USD", "basePrice": 59.60},
+]
+

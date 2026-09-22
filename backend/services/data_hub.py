@@ -19,7 +19,7 @@ from fastapi import WebSocket
 from backend.config import (
     ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_DATA_ENDPOINT, ALPACA_WS_ENDPOINT,
     BINANCE_REST_ENDPOINT, BINANCE_WS_ENDPOINT, TWELVE_DATA_API_KEY,
-    DEFAULT_INDICES, DEFAULT_STOCKS, DEFAULT_CRYPTO, DEFAULT_FOREX
+    DEFAULT_INDICES, DEFAULT_STOCKS, DEFAULT_CRYPTO, DEFAULT_FOREX, DEFAULT_COMMODITIES
 )
 
 logger = logging.getLogger("zerotrade.data_hub")
@@ -33,6 +33,14 @@ FOREX_YAHOO_MAP = {
     "AUD/USD": "AUDUSD=X",
     "USD/CAD": "USDCAD=X",
 }
+
+COMMODITIES_YAHOO_MAP = {
+    "XAU/USD": "GC=F",
+    "XAG/USD": "SI=F",
+    "GLD": "GLD",
+    "SLV": "SLV",
+}
+
 
 CRYPTO_YAHOO_MAP = {
     "BTCUSDT": "BTC-USD",
@@ -145,6 +153,26 @@ class MarketDataHub:
                 "volume24h": round(random.uniform(100_000_000, 500_000_000), 2),
                 "updatedAt": now
             }
+
+        # 5. Commodities (Gold & Silver)
+        for c in DEFAULT_COMMODITIES:
+            sym = c["symbol"]
+            self.symbol_metadata[sym] = c
+            self.tickers[sym] = {
+                "symbol": sym,
+                "name": c["name"],
+                "display": c.get("display", sym),
+                "category": "commodity",
+                "price": c["basePrice"],
+                "open24h": c["basePrice"],
+                "high24h": round(c["basePrice"] * 1.015, 2),
+                "low24h": round(c["basePrice"] * 0.985, 2),
+                "change24h": 0.0,
+                "changePercent24h": 0.0,
+                "volume24h": round(random.uniform(10_000_000, 80_000_000), 2),
+                "updatedAt": now
+            }
+
 
     async def register_client(self, websocket: WebSocket):
         """Add client WebSocket and send initial snapshot."""
@@ -558,6 +586,70 @@ class MarketDataHub:
                 await asyncio.sleep(0.3)
 
     # ==========================================================================
+    # UPSTREAM FEED 4: REAL COMMODITIES (GOLD XAU/USD, SILVER XAG/USD, GLD, SLV)
+    # ==========================================================================
+    async def _start_commodities_poll(self):
+        """
+        Fetches REAL-WORLD live quotes for Gold (XAU/USD, GC=F, GLD) and Silver (XAG/USD, SI=F, SLV).
+        Polls Yahoo Finance every 10 seconds and streams live micro-ticks continuously.
+        """
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        while self.running:
+            try:
+                async with httpx.AsyncClient(timeout=8) as client:
+                    for sym, y_sym in COMMODITIES_YAHOO_MAP.items():
+                        if not self.running:
+                            break
+                        try:
+                            url = f"https://query1.finance.yahoo.com/v8/finance/chart/{y_sym}?interval=1d&range=1d"
+                            r = await client.get(url, headers=headers)
+                            if r.status_code == 200:
+                                res = r.json().get("chart", {}).get("result", [])
+                                if res:
+                                    meta = res[0].get("meta", {})
+                                    price = float(meta.get("regularMarketPrice", 0.0))
+                                    prev = float(meta.get("chartPreviousClose", price))
+                                    high_p = float(meta.get("regularMarketDayHigh", price))
+                                    low_p = float(meta.get("regularMarketDayLow", price))
+                                    if price > 0 and sym in self.tickers:
+                                        t = self.tickers[sym]
+                                        t["price"] = round(price, 2)
+                                        t["open24h"] = round(prev, 2)
+                                        t["high24h"] = round(max(high_p, price), 2)
+                                        t["low24h"] = round(min(low_p, price), 2)
+                                        diff = price - prev
+                                        t["change24h"] = round(diff, 2)
+                                        t["changePercent24h"] = round((diff / prev) * 100, 2) if prev > 0 else 0.0
+                                        t["updatedAt"] = int(time.time())
+                                        self._update_live_candle(sym, price)
+                                        await self.broadcast_tick(sym)
+                        except Exception:
+                            pass
+                        await asyncio.sleep(0.1)
+
+                # Micro-ticks pulse between fetches for dynamic live market action
+                for _ in range(8):
+                    if not self.running:
+                        break
+                    for sym in COMMODITIES_YAHOO_MAP.keys():
+                        if sym in self.tickers:
+                            cur = self.tickers[sym]["price"]
+                            delta = cur * random.gauss(0, 0.0001)
+                            new_p = round(cur + delta, 2)
+                            self.tickers[sym]["price"] = new_p
+                            self.tickers[sym]["updatedAt"] = int(time.time())
+                            self._update_live_candle(sym, new_p)
+                            await self.broadcast_tick(sym)
+                    await asyncio.sleep(1.0)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning(f"Commodities poll loop error: {e}")
+                await asyncio.sleep(3)
+
+
+    # ==========================================================================
     # HISTORICAL CANDLE DATA PROVIDER (FOR CHARTS)
     # ==========================================================================
     async def get_candles(self, symbol: str, interval: str = "15m", limit: int = 150) -> List[Dict[str, Any]]:
@@ -652,16 +744,17 @@ class MarketDataHub:
             except Exception as e:
                 logger.warning(f"Yahoo Crypto candle fallback error for {symbol}: {e}")
 
-        # 2. US Stocks, Indices & Forex: Real Yahoo Finance historical candles
+        # 2. US Stocks, Indices, Forex & Commodities: Real Yahoo Finance historical candles
         is_forex = symbol in FOREX_YAHOO_MAP
+        is_commodity = symbol in COMMODITIES_YAHOO_MAP
         stock_or_index = (
             symbol in [s["symbol"] for s in DEFAULT_STOCKS] or
             symbol in [i["symbol"] for i in DEFAULT_INDICES] or
             symbol in ["SPY", "QQQ", "^GSPC", "^IXIC"]
         )
-        if stock_or_index or is_forex:
+        if stock_or_index or is_forex or is_commodity:
             try:
-                y_symbol = FOREX_YAHOO_MAP.get(symbol, symbol)
+                y_symbol = COMMODITIES_YAHOO_MAP.get(symbol, FOREX_YAHOO_MAP.get(symbol, symbol))
                 y_interval = "15m"
                 y_range = "5d"
                 if interval == "1m":
@@ -787,7 +880,9 @@ class MarketDataHub:
         self._tasks.append(asyncio.create_task(self._start_crypto_poll()))
         self._tasks.append(asyncio.create_task(self._start_forex_poll()))
         self._tasks.append(asyncio.create_task(self._start_stocks_poll()))
-        logger.info("MarketDataHub background real feeds initiated (Crypto, Forex, Stocks, Indices).")
+        self._tasks.append(asyncio.create_task(self._start_commodities_poll()))
+        logger.info("MarketDataHub background real feeds initiated (Crypto, Forex, Stocks, Indices, Commodities).")
+
 
     async def stop(self):
         """Stop all runners."""
