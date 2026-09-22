@@ -34,10 +34,15 @@ BINANCE_WS_ENDPOINT = os.getenv("BINANCE_WS_ENDPOINT", "wss://stream.binance.com
 # development/educational purposes. Upgrade to a paid commercial tier for production!
 TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "").strip()
 
-# Database
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
-SQLITE_DB_PATH = str(DATA_DIR / "zerotrade.db")
+# Database Configuration (Supports SQLite Persistent Disks & PostgreSQL Cloud Databases)
+SQLITE_DB_PATH = os.getenv("SQLITE_DB_PATH", "").strip()
+if not SQLITE_DB_PATH:
+    DATA_DIR = BASE_DIR / "data"
+    DATA_DIR.mkdir(exist_ok=True)
+    SQLITE_DB_PATH = str(DATA_DIR / "zerotrade.db")
+else:
+    Path(SQLITE_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
+
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 
 DEFAULT_INDICES = [
