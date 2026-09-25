@@ -57,7 +57,7 @@ class OrderEngine:
             pass
 
         try:
-            from backend.services.firebase_sync import sync_user, sync_all_user_positions
+            from backend.services.firebase_sync import sync_user, sync_all_user_positions, sync_order, sync_transaction
             with get_db() as conn:
                 c = conn.cursor()
                 c.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin FROM users WHERE id = ?", (user_id,))
@@ -67,6 +67,16 @@ class OrderEngine:
                 c.execute("SELECT * FROM positions WHERE user_id = ?", (user_id,))
                 active_pos = [dict(p) for p in c.fetchall()]
                 sync_all_user_positions(user_id, active_pos)
+
+                # Sync latest orders for this user to Firestore
+                c.execute("SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 25", (user_id,))
+                for o in c.fetchall():
+                    sync_order(dict(o))
+
+                # Sync latest transactions for this user to Firestore
+                c.execute("SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 25", (user_id,))
+                for t in c.fetchall():
+                    sync_transaction(dict(t))
         except Exception:
             pass
 

@@ -266,7 +266,46 @@ def restore_from_firebase():
                     data.get("upi_id"), data.get("utr_ref"), data.get("status", "pending"), data.get("admin_notes")
                 ))
 
-            logger.info(f"Firebase restore complete: {len(user_docs)} users, {len(pos_docs)} positions, {len(payment_docs)} payments synced.")
+            # 4. Restore Orders
+            order_docs = list(db.collection("orders").stream())
+            for o in order_docs:
+                data = o.to_dict()
+                oid = data.get("id") or data.get("orderId")
+                if oid:
+                    cursor.execute("""
+                        INSERT INTO orders (id, user_id, symbol, asset_class, side, order_type, quantity, limit_price, leverage, status, filled_price, filled_at, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET
+                            status = excluded.status,
+                            filled_price = excluded.filled_price,
+                            filled_at = excluded.filled_at
+                    """, (
+                        oid, data.get("user_id"), data.get("symbol"), data.get("asset_class", "stock"),
+                        data.get("side"), data.get("order_type", "MARKET"), data.get("quantity"), data.get("limit_price"),
+                        data.get("leverage", 1.0), data.get("status", "FILLED"), data.get("filled_price"),
+                        data.get("filled_at"), data.get("created_at")
+                    ))
+
+            # 5. Restore Transactions
+            tx_docs = list(db.collection("transactions").stream())
+            for t in tx_docs:
+                data = t.to_dict()
+                tid = data.get("id")
+                if tid and str(tid).isdigit():
+                    cursor.execute("""
+                        INSERT INTO transactions (id, user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET
+                            realized_pnl = excluded.realized_pnl,
+                            pnl_percent = excluded.pnl_percent
+                    """, (
+                        int(tid), data.get("user_id"), data.get("order_id"), data.get("symbol"),
+                        data.get("asset_class", "stock"), data.get("side"), data.get("quantity"), data.get("price"),
+                        data.get("entry_price", 0.0), data.get("leverage", 1.0), data.get("realized_pnl", 0.0),
+                        data.get("pnl_percent", 0.0), data.get("timestamp")
+                    ))
+
+            logger.info(f"Firebase restore complete: {len(user_docs)} users, {len(pos_docs)} positions, {len(payment_docs)} payments, {len(order_docs)} orders, {len(tx_docs)} transactions synced.")
 
     except Exception as e:
         logger.warning(f"Failed to restore from Firebase Firestore: {e}")
