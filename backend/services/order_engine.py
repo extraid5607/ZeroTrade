@@ -78,7 +78,9 @@ class OrderEngine:
         quantity: float,
         price_override: float = None,
         leverage: float = 1.0,
-        asset_class_override: str = None
+        asset_class_override: str = None,
+        expiry_date: str = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """
         Execute an immediate Market Buy or Sell order supporting:
@@ -110,6 +112,15 @@ class OrderEngine:
 
         is_option = is_option_asset(symbol, asset_class)
         nominal_value = fill_price * quantity
+
+        if is_option and not expiry_date:
+            try:
+                from backend.services.option_settlement import parse_option_symbol
+                parsed_opt = parse_option_symbol(symbol)
+                if parsed_opt:
+                    expiry_date = parsed_opt.get("expiry_date")
+            except Exception:
+                pass
 
         with get_db() as conn:
             cursor = conn.cursor()
@@ -181,9 +192,9 @@ class OrderEngine:
                         """, (combined_qty, combined_avg, combined_lev, pos["id"]))
                     else:
                         cursor.execute("""
-                            INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (user_id, symbol, asset_class, quantity, fill_price, effective_leverage))
+                            INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage, expiry_date)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (user_id, symbol, asset_class, quantity, fill_price, effective_leverage, expiry_date))
 
                     # Record filled order & transaction
                     cursor.execute("""
@@ -485,9 +496,9 @@ class OrderEngine:
                     if not pos:
                         # New Short Position
                         cursor.execute("""
-                            INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                        """, (user_id, symbol, asset_class, -quantity, fill_price, effective_leverage))
+                            INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage, expiry_date)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (user_id, symbol, asset_class, -quantity, fill_price, effective_leverage, expiry_date))
                     else:
                         # Adding to existing Short Position
                         old_short_qty = abs(pos["quantity"])
@@ -544,7 +555,9 @@ class OrderEngine:
         quantity: float,
         limit_price: float,
         leverage: float = 1.0,
-        asset_class_override: str = None
+        asset_class_override: str = None,
+        expiry_date: str = None,
+        **kwargs
     ) -> Dict[str, Any]:
         """Place a Limit Buy or Limit Sell order into the simulated order book with exact margin reservation."""
         side = side.upper()
