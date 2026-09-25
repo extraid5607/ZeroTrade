@@ -37,6 +37,17 @@ async def _db_keep_alive_loop():
             pass
 
 
+async def _option_expiry_loop():
+    """Periodically check and settle expired US options according to market hours."""
+    while True:
+        await asyncio.sleep(60)  # Check every 60 seconds
+        try:
+            from backend.services.option_settlement import settle_expired_options
+            settle_expired_options()
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -45,8 +56,10 @@ async def lifespan(app: FastAPI):
         init_db()
         from backend.services.firebase_sync import restore_from_firebase
         restore_from_firebase()
+        from backend.services.option_settlement import settle_expired_options
+        settle_expired_options()
     except Exception as e:
-        logger.error(f"Database init / Firebase restore exception: {e}")
+        logger.error(f"Database init / Firebase restore / Option settlement exception: {e}")
 
     logger.info("Starting MarketDataHub background price feeds...")
     try:
@@ -55,10 +68,12 @@ async def lifespan(app: FastAPI):
         logger.error(f"MarketDataHub start error: {e}")
 
     keep_alive_task = asyncio.create_task(_db_keep_alive_loop())
+    settle_task = asyncio.create_task(_option_expiry_loop())
 
     yield
     # Shutdown
     keep_alive_task.cancel()
+    settle_task.cancel()
     logger.info("Shutting down MarketDataHub...")
     await data_hub.stop()
 

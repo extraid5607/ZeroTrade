@@ -95,30 +95,61 @@ def sync_user(user_data: Dict[str, Any]):
     _run_bg(_task)
 
 
-def sync_position(user_id: int, symbol: str, pos_data: Optional[Dict[str, Any]]):
-    """Backup or delete position in Firebase Firestore in background."""
+def delete_user_position(user_id: int, symbol: str):
+    """Explicitly delete a closed/exited position from Firebase Firestore."""
     def _task():
         db = get_firestore_client()
         if not db:
             return
         try:
             doc_id = f"{user_id}_{symbol.replace('/', '_').replace(' ', '_')}"
-            ref = db.collection("positions").document(doc_id)
-            if pos_data is None or pos_data.get("quantity", 0) == 0:
-                ref.delete()
-            else:
+            db.collection("positions").document(doc_id).delete()
+            logger.info(f"Firebase deleted position doc: {doc_id}")
+        except Exception as e:
+            logger.debug(f"Firebase delete_user_position error: {e}")
+    _run_bg(_task)
+
+
+def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]]):
+    """
+    Synchronize all active positions for a user with Firebase Firestore.
+    Writes/updates active positions and automatically deletes any stale or closed positions from Firestore.
+    """
+    def _task():
+        db = get_firestore_client()
+        if not db:
+            return
+        try:
+            active_symbols = set()
+            for pos in current_positions:
+                qty = float(pos.get("quantity") or 0.0)
+                if abs(qty) <= 1e-7:
+                    continue
+                sym = pos["symbol"]
+                active_symbols.add(sym)
+                doc_id = f"{user_id}_{sym.replace('/', '_').replace(' ', '_')}"
                 doc = {
                     "user_id": user_id,
-                    "symbol": symbol,
-                    "asset_class": pos_data.get("asset_class", "stock"),
-                    "quantity": float(pos_data["quantity"]),
-                    "avg_entry_price": float(pos_data["avg_entry_price"]),
-                    "leverage": float(pos_data.get("leverage", 1.0)),
+                    "symbol": sym,
+                    "asset_class": pos.get("asset_class", "stock"),
+                    "quantity": qty,
+                    "avg_entry_price": float(pos["avg_entry_price"]),
+                    "leverage": float(pos.get("leverage", 1.0)),
+                    "expiry_date": pos.get("expiry_date"),
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }
-                ref.set(doc, merge=True)
+                db.collection("positions").document(doc_id).set(doc, merge=True)
+
+            # Query all existing positions for this user in Firestore and delete any that are no longer active
+            user_docs = list(db.collection("positions").where("user_id", "==", user_id).stream())
+            for d in user_docs:
+                data = d.to_dict()
+                if data.get("symbol") not in active_symbols:
+                    d.reference.delete()
+                    logger.info(f"Deleted stale position {data.get('symbol')} from Firestore for user {user_id}")
+
         except Exception as e:
-            logger.debug(f"Firebase sync_position error: {e}")
+            logger.debug(f"Firebase sync_all_user_positions error: {e}")
     _run_bg(_task)
 
 

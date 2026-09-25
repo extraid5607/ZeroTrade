@@ -25,6 +25,7 @@ class PlaceOrderRequest(BaseModel):
     price: Optional[float] = None    # Override fill price (used for options from chain)
     leverage: Optional[float] = 1.0  # 1x up to 20x leverage (Futures/Stocks only; Options use 1x Buy / 10x Sell margin)
     asset_class: Optional[str] = None
+    expiry_date: Optional[str] = None
 
 
 @router.post("/orders")
@@ -42,7 +43,8 @@ def place_order(req: PlaceOrderRequest, user: dict = Depends(get_current_user)):
                 user_id, sym, side, req.quantity,
                 price_override=req.price,
                 leverage=leverage,
-                asset_class_override=req.asset_class
+                asset_class_override=req.asset_class,
+                expiry_date=req.expiry_date
             )
             return res
         elif otype == "LIMIT":
@@ -52,7 +54,8 @@ def place_order(req: PlaceOrderRequest, user: dict = Depends(get_current_user)):
                 user_id, sym, side, req.quantity,
                 req.limit_price,
                 leverage=leverage,
-                asset_class_override=req.asset_class
+                asset_class_override=req.asset_class,
+                expiry_date=req.expiry_date
             )
             return res
         else:

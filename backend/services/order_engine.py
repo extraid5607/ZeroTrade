@@ -57,7 +57,7 @@ class OrderEngine:
             pass
 
         try:
-            from backend.services.firebase_sync import sync_user, sync_position
+            from backend.services.firebase_sync import sync_user, sync_all_user_positions
             with get_db() as conn:
                 c = conn.cursor()
                 c.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin FROM users WHERE id = ?", (user_id,))
@@ -65,8 +65,8 @@ class OrderEngine:
                 if u:
                     sync_user(dict(u))
                 c.execute("SELECT * FROM positions WHERE user_id = ?", (user_id,))
-                for p in c.fetchall():
-                    sync_position(user_id, p["symbol"], dict(p))
+                active_pos = [dict(p) for p in c.fetchall()]
+                sync_all_user_positions(user_id, active_pos)
         except Exception:
             pass
 
@@ -854,7 +854,14 @@ class OrderEngine:
         """
         Compute real-time portfolio metrics, active open positions (LONG & SHORT with proper margins),
         and Zerodha-style today's closed positions (retained until US Eastern Time day-end).
+        Automatically settles expired option contracts, unlocking margin and crediting P&L.
         """
+        try:
+            from backend.services.option_settlement import settle_expired_options
+            settle_expired_options(user_id)
+        except Exception as settle_err:
+            logger.debug(f"Option expiry settlement check: {settle_err}")
+
         with get_db() as conn:
             cursor = conn.cursor()
 

@@ -349,7 +349,9 @@ def init_db():
             for tbl, col, col_def in [
                 ("users", "is_admin", "INTEGER DEFAULT 0"),
                 ("positions", "leverage", "REAL DEFAULT 1.0"),
+                ("positions", "expiry_date", "TEXT"),
                 ("orders", "leverage", "REAL DEFAULT 1.0"),
+                ("orders", "expiry_date", "TEXT"),
                 ("transactions", "leverage", "REAL DEFAULT 1.0"),
                 ("transactions", "entry_price", "REAL DEFAULT 0.0"),
                 ("transactions", "pnl_percent", "REAL DEFAULT 0.0"),

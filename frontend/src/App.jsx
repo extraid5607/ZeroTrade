@@ -353,6 +353,7 @@ export default function App() {
       const isShort = pos.side === 'SHORT' || pos.quantity < 0;
       const side = isShort ? 'BUY' : 'SELL';
       const qty = Math.abs(pos.quantity);
+      const isOption = Boolean(pos.isOption || pos.assetClass === 'options' || pos.symbol.includes(' CE') || pos.symbol.includes(' PE'));
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: {
@@ -364,7 +365,8 @@ export default function App() {
           side: side,
           order_type: 'MARKET',
           quantity: qty,
-          price: pos.currentPrice || pos.avgEntryPrice
+          price: pos.currentPrice || pos.avgEntryPrice || 10.0,
+          asset_class: pos.assetClass || (isOption ? 'options' : 'stock')
         })
       });
 

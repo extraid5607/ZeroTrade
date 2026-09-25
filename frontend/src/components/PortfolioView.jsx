@@ -39,6 +39,17 @@ export default function PortfolioView({
 
   const openPositions = portfolio?.positions || [];
   const closedPositions = portfolio?.closedPositionsToday || [];
+  
+  // Holdings = Non-leveraged Delivery Stocks / Long Equity
+  const holdingsPositions = openPositions.filter(p => 
+    (p.assetClass === 'stock' || p.assetClass === 'crypto') && 
+    (p.side === 'LONG' || Number(p.quantity) > 0) && 
+    (Number(p.leverage) <= 1 || !p.leverage) && 
+    !p.isOption && 
+    !p.symbol.includes(' CE') && 
+    !p.symbol.includes(' PE')
+  );
+
   const cash = Number(portfolio?.cash) || 10000;
   const marginInvested = Number(portfolio?.marginInvested) || 0;
   const marketVal = Number(portfolio?.marketValue) || 0;
@@ -59,7 +70,7 @@ export default function PortfolioView({
 
   // Filtered list based on 'all' | 'open' | 'closed'
   const displayPositions = subTab === 'holdings'
-    ? openPositions
+    ? holdingsPositions
     : (posFilter === 'open'
         ? openPositions
         : posFilter === 'closed'
@@ -117,7 +128,7 @@ export default function PortfolioView({
             }`}
           >
             <PieChart className="w-3.5 h-3.5" />
-            <span>Holdings ({openPositions.length})</span>
+            <span>Holdings ({holdingsPositions.length})</span>
           </button>
         </div>
       </div>
@@ -347,8 +358,22 @@ export default function PortfolioView({
                     </div>
                   </div>
 
-                  {/* Manage Pill */}
+                  {/* Action Buttons */}
                   <div className="flex items-center gap-1.5">
+                    {!isClosed && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onClosePosition) {
+                            onClosePosition(p);
+                          }
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 border border-rose-200 dark:border-rose-900/40 transition-all active:scale-95 shadow-xs"
+                        title={isShort ? "Buy back and cover short position" : "Sell and exit position"}
+                      >
+                        <span>{isShort ? 'Cover' : 'Exit'}</span>
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
