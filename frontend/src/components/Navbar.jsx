@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   RotateCcw, 
   Sun, 
@@ -14,7 +14,9 @@ import {
   Search,
   DollarSign,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 import Logo from './Logo';
 
@@ -38,22 +40,36 @@ export default function Navbar({
   const netPnl = portfolio?.netPnl ?? 0;
   const isPnlPositive = netPnl >= 0;
 
-  // Pin Top Index Tickers (Zerodha Kite top ticker bar style)
+  // Pin Top Index Tickers
   const spx = tickers.find(t => t.symbol === '^GSPC' || t.symbol === 'SPY');
   const ndx = tickers.find(t => t.symbol === '^IXIC' || t.symbol === 'QQQ');
   const btc = tickers.find(t => t.symbol === 'BTCUSDT');
+  const gold = tickers.find(t => t.symbol === 'XAU/USD' || t.symbol === 'GLD');
 
+  const topMobileTickers = [spx, ndx, btc, gold].filter(Boolean);
+  const [mobileTickerIndex, setMobileTickerIndex] = useState(0);
+
+  // Auto-cycle top index ticker on mobile every 5 seconds
+  useEffect(() => {
+    if (topMobileTickers.length <= 1) return;
+    const timer = setInterval(() => {
+      setMobileTickerIndex(prev => (prev + 1) % topMobileTickers.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [topMobileTickers.length]);
+
+  const activeMobileTicker = topMobileTickers[mobileTickerIndex] || spx || { symbol: 'SPY', price: 560.5, changePercent24h: 0.45 };
   const openPositionsCount = portfolio?.positions?.length || 0;
 
   return (
     <>
       {/* ========================================================================= */}
-      {/* 1. TOP APP BAR & LIVE TICKER BAR (Indian Broker Kite/Groww Style)          */}
+      {/* 1. TOP APP BAR (DESKTOP DUAL-TIER + MOBILE ULTRA-COMPACT 48px)             */}
       {/* ========================================================================= */}
-      <header className="bg-white dark:bg-surface-darkPanel border-b border-gray-200 dark:border-surface-darkBorder sticky top-0 z-40 transition-colors">
+      <header className="bg-white dark:bg-surface-darkPanel border-b border-gray-200 dark:border-surface-darkBorder sticky top-0 z-40 transition-colors shadow-2xs">
         
-        {/* Ticker Tape */}
-        <div className="bg-gray-100 dark:bg-surface-darkCard border-b border-gray-200/60 dark:border-surface-darkBorder/60 px-4 py-1 flex items-center justify-between text-xs overflow-x-auto select-none">
+        {/* DESKTOP TICKER TAPE (Hidden on mobile) */}
+        <div className="hidden md:flex bg-gray-100 dark:bg-surface-darkCard border-b border-gray-200/60 dark:border-surface-darkBorder/60 px-4 py-1 items-center justify-between text-xs overflow-x-auto select-none">
           <div className="flex items-center gap-4 sm:gap-6 font-mono text-[11px]">
             <div className="flex items-center gap-1.5 font-sans font-medium text-gray-400">
               <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
@@ -64,7 +80,7 @@ export default function Navbar({
               <div className="flex items-center gap-1.5">
                 <span className="text-gray-500 font-sans">S&amp;P 500:</span>
                 <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${spx.price.toFixed(2)}</span>
-                <span className={`text-[10px] ${spx.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <span className={`text-[10px] font-medium ${spx.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {spx.changePercent24h >= 0 ? '+' : ''}{spx.changePercent24h.toFixed(2)}%
                 </span>
               </div>
@@ -74,46 +90,60 @@ export default function Navbar({
               <div className="flex items-center gap-1.5">
                 <span className="text-gray-500 font-sans">NASDAQ:</span>
                 <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${ndx.price.toFixed(2)}</span>
-                <span className={`text-[10px] ${ndx.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <span className={`text-[10px] font-medium ${ndx.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {ndx.changePercent24h >= 0 ? '+' : ''}{ndx.changePercent24h.toFixed(2)}%
                 </span>
               </div>
             )}
 
             {btc && (
-              <div className="hidden md:flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5">
                 <span className="text-gray-500 font-sans">BTC:</span>
                 <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${btc.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                <span className={`text-[10px] ${btc.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <span className={`text-[10px] font-medium ${btc.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {btc.changePercent24h >= 0 ? '+' : ''}{btc.changePercent24h.toFixed(2)}%
                 </span>
               </div>
             )}
           </div>
 
-          <div className="flex items-center gap-3 tabular-nums font-medium text-[11px]">
-            <div className="hidden sm:flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
+          <div className="flex items-center gap-4 tabular-nums font-medium text-[11px]">
+            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
               <span>Capital:</span>
               <span className="font-bold text-gray-900 dark:text-white">${cash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </div>
 
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
-              <span>P&amp;L:</span>
-              <span className={`font-bold ${isPnlPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+              <span>Day P&amp;L:</span>
+              <span className={`font-bold px-1.5 py-0.2 rounded-md ${isPnlPositive ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'}`}>
                 {isPnlPositive ? '+' : ''}${netPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Main Nav Header */}
+        {/* MAIN NAVIGATION BAR */}
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-          <div className="flex items-center justify-between h-14">
+          <div className="flex items-center justify-between h-12 md:h-14">
             
-            {/* Left: Brand Logo & Terminal Switcher */}
-            <div className="flex items-center gap-3">
-              <div className="cursor-pointer" onClick={() => setActiveTab('watchlist')}>
-                <Logo />
+            {/* Left: Brand Logo */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="cursor-pointer active:scale-95 transition-transform" onClick={() => setActiveTab('watchlist')}>
+                <Logo size="sm" />
+              </div>
+
+              {/* Mobile Live Ticker Chip (Ultra-compact, clickable to cycle) */}
+              <div 
+                onClick={() => setMobileTickerIndex(prev => (prev + 1) % Math.max(1, topMobileTickers.length))}
+                className="md:hidden flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-100 dark:bg-surface-darkCard border border-gray-200/80 dark:border-surface-darkBorder/80 text-[11px] font-medium cursor-pointer active:scale-95 transition-transform"
+                title="Tap to cycle major market indexes"
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                <span className="text-gray-500 dark:text-gray-400">{activeMobileTicker.symbol === '^GSPC' ? 'S&P' : activeMobileTicker.symbol === '^IXIC' ? 'NDX' : activeMobileTicker.symbol.replace('USDT', '')}:</span>
+                <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${Number(activeMobileTicker.price || 0).toLocaleString('en-US', { minimumFractionDigits: activeMobileTicker.price < 5 ? 4 : 2, maximumFractionDigits: activeMobileTicker.price < 5 ? 4 : 2 })}</span>
+                <span className={`text-[10px] tabular-nums font-semibold ${activeMobileTicker.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {activeMobileTicker.changePercent24h >= 0 ? '+' : ''}{Number(activeMobileTicker.changePercent24h || 0).toFixed(1)}%
+                </span>
               </div>
             </div>
 
@@ -179,7 +209,7 @@ export default function Navbar({
                 <Briefcase className="w-4 h-4" />
                 <span>Portfolio</span>
                 {openPositionsCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-medium tabular-nums">
+                  <span className="px-1.5 py-0.2 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-medium tabular-nums shadow-xs">
                     {openPositionsCount}
                   </span>
                 )}
@@ -188,13 +218,21 @@ export default function Navbar({
             </nav>
 
             {/* Right Action Items */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-1.5 sm:gap-2.5">
               
+              {/* Mobile P&L Chip */}
+              <div className="md:hidden flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 dark:bg-surface-darkCard border border-gray-200/80 dark:border-surface-darkBorder/80 text-[11px] tabular-nums font-semibold">
+                <span className="text-gray-400 text-[10px]">P&amp;L:</span>
+                <span className={isPnlPositive ? 'text-emerald-500' : 'text-rose-500'}>
+                  {isPnlPositive ? '+' : ''}${netPnl.toFixed(1)}
+                </span>
+              </div>
+
               {/* Admin Desk Button (For Merchant Admins) */}
               {user?.isAdmin && onOpenAdminModal && (
                 <button
                   onClick={onOpenAdminModal}
-                  className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5"
+                  className="px-2.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md shadow-indigo-500/20 active:scale-95 transition-all flex items-center gap-1.5"
                   title="Admin Payment Verification Desk"
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
@@ -206,7 +244,7 @@ export default function Navbar({
               {onOpenBillingModal && (
                 <button
                   onClick={() => onOpenBillingModal('reset_10k')}
-                  className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center gap-1.5"
+                  className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition-all flex items-center gap-1.5"
                   title="Capital Packages & UPI Upgrades"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
@@ -217,7 +255,7 @@ export default function Navbar({
               {/* Theme Toggle */}
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-surface-darkHover transition-colors"
+                className="p-1.5 sm:p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-surface-darkHover transition-colors active:scale-90"
                 title="Toggle Theme"
               >
                 {theme === 'dark' ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
@@ -226,14 +264,16 @@ export default function Navbar({
               {/* Account Button (Desktop & Mobile) */}
               <button
                 onClick={() => setActiveTab('account')}
-                className={`p-2 sm:px-3 rounded-xl border transition-colors flex items-center gap-1.5 ${
+                className={`p-1.5 sm:px-3 sm:py-1.5 rounded-xl border transition-all flex items-center gap-1.5 active:scale-95 ${
                   activeTab === 'account'
                     ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400'
                     : 'border-gray-200 dark:border-surface-darkBorder text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-surface-darkHover'
                 }`}
                 title="Account / Profile"
               >
-                <User className="w-4 h-4" />
+                <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
+                  {user ? (user.displayName || user.email || 'U')[0].toUpperCase() : <User className="w-3 h-3" />}
+                </div>
                 <span className="text-xs font-medium hidden lg:inline">
                   {user ? (user.displayName || user.email.split('@')[0]) : 'Account'}
                 </span>
@@ -247,79 +287,89 @@ export default function Navbar({
       </header>
 
       {/* ========================================================================= */}
-      {/* 2. FIXED MOBILE BOTTOM NAVIGATION BAR (Zerodha Kite & Groww App Style)    */}
+      {/* 2. FIXED MOBILE BOTTOM NAVIGATION BAR (Zerodha Kite & Groww App Signature) */}
       {/* ========================================================================= */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-surface-darkPanel/95 backdrop-blur-md border-t border-gray-200 dark:border-surface-darkBorder py-1 px-2 select-none shadow-2xl">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-surface-darkPanel/95 backdrop-blur-xl border-t border-gray-200/80 dark:border-surface-darkBorder/80 pt-1.5 pb-safe px-2 select-none shadow-2xl transition-colors">
         <div className="grid grid-cols-5 gap-1 text-center">
           
           {/* 1. Watchlist */}
           <button
             onClick={() => setActiveTab('watchlist')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-90 ${
               activeTab === 'watchlist'
-                ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                : 'text-gray-500 dark:text-gray-400 font-normal'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-gray-500 dark:text-gray-400 font-normal hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            <ListOrdered className={`w-5 h-5 mb-0.5 ${activeTab === 'watchlist' ? 'stroke-[2]' : ''}`} />
-            <span className="text-[10px]">Watchlist</span>
+            <div className={`p-1 rounded-xl transition-all ${activeTab === 'watchlist' ? 'bg-blue-50 dark:bg-blue-950/60' : ''}`}>
+              <ListOrdered className={`w-5 h-5 ${activeTab === 'watchlist' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">Watchlist</span>
           </button>
 
           {/* 2. Orders */}
           <button
             onClick={() => setActiveTab('orders')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-90 ${
               activeTab === 'orders'
-                ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                : 'text-gray-500 dark:text-gray-400 font-normal'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-gray-500 dark:text-gray-400 font-normal hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            <FileText className={`w-5 h-5 mb-0.5 ${activeTab === 'orders' ? 'stroke-[2]' : ''}`} />
-            <span className="text-[10px]">Orders</span>
+            <div className={`p-1 rounded-xl transition-all ${activeTab === 'orders' ? 'bg-blue-50 dark:bg-blue-950/60' : ''}`}>
+              <FileText className={`w-5 h-5 ${activeTab === 'orders' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">Orders</span>
           </button>
 
           {/* 3. Portfolio */}
           <button
             onClick={() => setActiveTab('portfolio')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl relative transition-all ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl relative transition-all active:scale-90 ${
               activeTab === 'portfolio'
-                ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                : 'text-gray-500 dark:text-gray-400 font-normal'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-gray-500 dark:text-gray-400 font-normal hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            <Briefcase className={`w-5 h-5 mb-0.5 ${activeTab === 'portfolio' ? 'stroke-[2]' : ''}`} />
-            <span className="text-[10px]">Portfolio</span>
-            {openPositionsCount > 0 && (
-              <span className="absolute top-1 right-3 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-medium tabular-nums flex items-center justify-center">
-                {openPositionsCount}
-              </span>
-            )}
+            <div className={`p-1 rounded-xl relative transition-all ${activeTab === 'portfolio' ? 'bg-blue-50 dark:bg-blue-950/60' : ''}`}>
+              <Briefcase className={`w-5 h-5 ${activeTab === 'portfolio' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+              {openPositionsCount > 0 && (
+                <span className="absolute -top-1 -right-1.5 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold tabular-nums flex items-center justify-center shadow-xs ring-2 ring-white dark:ring-surface-darkPanel">
+                  {openPositionsCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">Portfolio</span>
           </button>
 
           {/* 4. Option Chain */}
           <button
             onClick={() => setActiveTab('options')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-90 ${
               activeTab === 'options'
-                ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                : 'text-gray-500 dark:text-gray-400 font-normal'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-gray-500 dark:text-gray-400 font-normal hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            <Layers className={`w-5 h-5 mb-0.5 ${activeTab === 'options' ? 'stroke-[2]' : ''}`} />
-            <span className="text-[10px]">F&amp;O Chain</span>
+            <div className={`p-1 rounded-xl transition-all ${activeTab === 'options' ? 'bg-blue-50 dark:bg-blue-950/60' : ''}`}>
+              <Layers className={`w-5 h-5 ${activeTab === 'options' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">F&amp;O Chain</span>
           </button>
 
           {/* 5. Account */}
           <button
             onClick={() => setActiveTab('account')}
-            className={`flex flex-col items-center justify-center py-1.5 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-90 ${
               activeTab === 'account'
-                ? 'text-blue-600 dark:text-blue-400 font-semibold'
-                : 'text-gray-500 dark:text-gray-400 font-normal'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-gray-500 dark:text-gray-400 font-normal hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
-            <User className={`w-5 h-5 mb-0.5 ${activeTab === 'account' ? 'stroke-[2]' : ''}`} />
-            <span className="text-[10px]">Account</span>
+            <div className={`p-1 rounded-xl transition-all ${activeTab === 'account' ? 'bg-blue-50 dark:bg-blue-950/60' : ''}`}>
+              <User className={`w-5 h-5 ${activeTab === 'account' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">Account</span>
           </button>
 
         </div>
@@ -327,3 +377,4 @@ export default function Navbar({
     </>
   );
 }
+

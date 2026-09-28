@@ -34,6 +34,25 @@ body {
   letter-spacing: -0.01em;
 }
 
+/* Mobile App & iOS / Android Safe-Area Inset Utilities */
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
+.pt-safe {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+
+/* Eliminate gray box tap flash on mobile WebKit */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Touch manipulation optimization for rapid trading taps */
+button, a, input, select {
+  touch-action: manipulation;
+}
+
 /* Smooth sleek scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
@@ -51,5 +70,14 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(100, 116, 139, 0.4);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 

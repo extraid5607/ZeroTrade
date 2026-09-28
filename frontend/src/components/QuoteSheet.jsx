@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, BarChart2, Layers, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { X, BarChart2, Layers, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
 
 export default function QuoteSheet({
   isOpen,
@@ -11,9 +11,11 @@ export default function QuoteSheet({
 }) {
   if (!isOpen || !ticker) return null;
 
-  const price = ticker.price || 100.0;
-  const isPositive = (ticker.changePercent24h || 0) >= 0;
-  const precision = price < 5 ? 4 : 2;
+  const price = Number(ticker.price || 100.0);
+  const isPositive = Number(ticker.changePercent24h || 0) >= 0;
+  const isForex5 = ['EUR/USD', 'GBP/USD', 'AUD/USD', 'USD/CAD'].includes(ticker.symbol);
+  const isForex3 = ['USD/JPY', 'USD/INR'].includes(ticker.symbol);
+  const precision = isForex5 ? 5 : (isForex3 ? 3 : (price < 5 ? 4 : 2));
   const isOptionEligible = ticker.category === 'index' || ticker.category === 'stock';
 
   // Generate realistic 5-depth order book based on live market price
@@ -45,52 +47,57 @@ export default function QuoteSheet({
       <div className="absolute inset-0" onClick={onClose} />
 
       {/* Sheet / Modal */}
-      <div className="relative w-full sm:max-w-lg bg-white dark:bg-surface-darkPanel rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[90vh] flex flex-col">
+      <div className="relative w-full sm:max-w-lg bg-white dark:bg-surface-darkPanel rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[90vh] flex flex-col pb-safe">
         
+        {/* Mobile Drag Indicator Handle */}
+        <div className="sm:hidden pt-2.5 pb-1 flex justify-center cursor-pointer" onClick={onClose}>
+          <div className="w-12 h-1.5 rounded-full bg-gray-300 dark:bg-surface-darkBorder" />
+        </div>
+
         {/* Header Bar */}
-        <div className="p-4 border-b border-gray-100 dark:border-surface-darkBorder flex items-start justify-between">
+        <div className="px-4 py-3 sm:p-4 border-b border-gray-100 dark:border-surface-darkBorder flex items-start justify-between">
           <div>
             <div className="flex items-center gap-2">
               <span className="font-semibold text-lg text-gray-900 dark:text-white">
                 {ticker.display || ticker.symbol}
               </span>
-              <span className="text-[10px] font-normal uppercase px-1.5 py-0.5 rounded bg-gray-100 dark:bg-surface-darkCard text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-surface-darkBorder">
+              <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded bg-gray-100 dark:bg-surface-darkCard text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-surface-darkBorder">
                 {ticker.category}
               </span>
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 font-normal mt-0.5">
+            <div className="text-xs text-gray-400 font-normal mt-0.5">
               {ticker.name || ticker.symbol}
             </div>
           </div>
 
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">
+              <div className="text-lg sm:text-xl font-semibold tabular-nums text-gray-900 dark:text-white">
                 ${price.toLocaleString('en-US', { minimumFractionDigits: precision, maximumFractionDigits: precision })}
               </div>
-              <div className={`text-xs font-normal tabular-nums flex items-center justify-end gap-0.5 ${
+              <div className={`text-xs font-semibold tabular-nums flex items-center justify-end gap-0.5 ${
                 isPositive ? 'text-emerald-500' : 'text-rose-500'
               }`}>
-                {isPositive ? '+' : ''}{ticker.changePercent24h ? ticker.changePercent24h.toFixed(2) : '0.00'}%
+                {isPositive ? '+' : ''}{Number(ticker.changePercent24h || 0).toFixed(2)}%
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-surface-darkHover text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-surface-darkHover text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
         </div>
 
-        {/* Primary Action Buttons (Indian Broker Kite / Groww Signature) */}
+        {/* Primary Action Buttons (Zerodha Kite & Groww Signature Big Touch CTAs) */}
         <div className="p-4 border-b border-gray-100 dark:border-surface-darkBorder grid grid-cols-2 gap-3">
           <button
             onClick={() => {
               onClose();
               onOpenOrderModal('BUY');
             }}
-            className="py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            className="py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             <ArrowUpRight className="w-4 h-4 stroke-[2.5]" />
             <span>BUY (Long)</span>
@@ -101,7 +108,7 @@ export default function QuoteSheet({
               onClose();
               onOpenOrderModal('SELL');
             }}
-            className="py-3 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-semibold text-sm uppercase tracking-wider shadow-lg shadow-orange-500/25 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            className="py-3 px-4 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-orange-500/25 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             <ArrowDownRight className="w-4 h-4 stroke-[2.5]" />
             <span>SELL (Short)</span>
@@ -115,7 +122,7 @@ export default function QuoteSheet({
               onClose();
               onViewChart(ticker.symbol);
             }}
-            className="flex-1 py-2 px-3 rounded-lg border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+            className="flex-1 py-2 px-3 rounded-xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95"
           >
             <BarChart2 className="w-4 h-4 text-blue-500" />
             <span>View Full Chart</span>
@@ -127,7 +134,7 @@ export default function QuoteSheet({
                 onClose();
                 onOpenOptionChain(ticker.symbol);
               }}
-              className="flex-1 py-2 px-3 rounded-lg border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel text-xs font-medium text-gray-700 dark:text-gray-300 hover:text-cyan-600 dark:hover:text-cyan-400 flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+              className="flex-1 py-2 px-3 rounded-xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-cyan-600 dark:hover:text-cyan-400 flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95"
             >
               <Layers className="w-4 h-4 text-cyan-500" />
               <span>Option Chain</span>
@@ -138,10 +145,10 @@ export default function QuoteSheet({
         {/* Market Depth 5-Depth (Zerodha Kite Classic Feature) */}
         <div className="p-4 overflow-y-auto">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
               Market Depth (5-Level Bids &amp; Asks)
             </span>
-            <div className="text-[10px] tabular-nums text-gray-400 font-normal">
+            <div className="text-[10px] tabular-nums text-gray-400 font-semibold">
               Buy {buyRatio.toFixed(0)}% / Sell {(100 - buyRatio).toFixed(0)}%
             </div>
           </div>
@@ -159,7 +166,7 @@ export default function QuoteSheet({
             
             {/* Bids Column */}
             <div>
-              <div className="grid grid-cols-3 text-[10px] text-gray-400 uppercase font-medium pb-1 border-b border-gray-200 dark:border-surface-darkBorder">
+              <div className="grid grid-cols-3 text-[10px] text-gray-400 uppercase font-semibold pb-1 border-b border-gray-200 dark:border-surface-darkBorder">
                 <span>Orders</span>
                 <span className="text-center">Qty</span>
                 <span className="text-right text-blue-600 dark:text-blue-400">Bid</span>
@@ -169,13 +176,13 @@ export default function QuoteSheet({
                   <div key={idx} className="grid grid-cols-3 py-1 text-gray-700 dark:text-gray-300">
                     <span className="text-gray-400">{b.orders}</span>
                     <span className="text-center">{b.qty}</span>
-                    <span className="text-right font-medium text-blue-600 dark:text-blue-400">
+                    <span className="text-right font-semibold text-blue-600 dark:text-blue-400">
                       ${b.price.toFixed(precision)}
                     </span>
                   </div>
                 ))}
               </div>
-              <div className="pt-1.5 mt-1 border-t border-gray-200 dark:border-surface-darkBorder flex justify-between font-medium text-[10px] tabular-nums">
+              <div className="pt-1.5 mt-1 border-t border-gray-200 dark:border-surface-darkBorder flex justify-between font-semibold text-[10px] tabular-nums">
                 <span className="text-gray-400 uppercase">Total:</span>
                 <span className="text-blue-600 dark:text-blue-400">{totalBidQty.toLocaleString()}</span>
               </div>
@@ -183,7 +190,7 @@ export default function QuoteSheet({
 
             {/* Asks Column */}
             <div>
-              <div className="grid grid-cols-3 text-[10px] text-gray-400 uppercase font-medium pb-1 border-b border-gray-200 dark:border-surface-darkBorder">
+              <div className="grid grid-cols-3 text-[10px] text-gray-400 uppercase font-semibold pb-1 border-b border-gray-200 dark:border-surface-darkBorder">
                 <span className="text-orange-600 dark:text-orange-400">Ask</span>
                 <span className="text-center">Qty</span>
                 <span className="text-right">Orders</span>
@@ -191,7 +198,7 @@ export default function QuoteSheet({
               <div className="divide-y divide-gray-100 dark:divide-surface-darkBorder/40 tabular-nums">
                 {asks.map((a, idx) => (
                   <div key={idx} className="grid grid-cols-3 py-1 text-gray-700 dark:text-gray-300">
-                    <span className="font-medium text-orange-600 dark:text-orange-400">
+                    <span className="font-semibold text-orange-600 dark:text-orange-400">
                       ${a.price.toFixed(precision)}
                     </span>
                     <span className="text-center">{a.qty}</span>
@@ -199,7 +206,7 @@ export default function QuoteSheet({
                   </div>
                 ))}
               </div>
-              <div className="pt-1.5 mt-1 border-t border-gray-200 dark:border-surface-darkBorder flex justify-between font-medium text-[10px] tabular-nums">
+              <div className="pt-1.5 mt-1 border-t border-gray-200 dark:border-surface-darkBorder flex justify-between font-semibold text-[10px] tabular-nums">
                 <span className="text-gray-400 uppercase">Total:</span>
                 <span className="text-orange-600 dark:text-orange-400">{totalAskQty.toLocaleString()}</span>
               </div>
@@ -208,22 +215,22 @@ export default function QuoteSheet({
           </div>
 
           {/* Day Statistics Summary */}
-          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[10px] bg-gray-50 dark:bg-surface-darkCard p-2 rounded-lg border border-gray-100 dark:border-surface-darkBorder tabular-nums">
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[10px] bg-gray-50 dark:bg-surface-darkCard p-2 rounded-xl border border-gray-100 dark:border-surface-darkBorder tabular-nums">
             <div>
               <div className="text-gray-400 font-medium">Open</div>
-              <div className="font-medium text-gray-900 dark:text-white">
+              <div className="font-semibold text-gray-900 dark:text-white">
                 ${(ticker.open24h || price).toFixed(precision)}
               </div>
             </div>
             <div>
               <div className="text-gray-400 font-medium">24h High</div>
-              <div className="font-medium text-emerald-500">
+              <div className="font-semibold text-emerald-500">
                 ${(ticker.high24h || price * 1.01).toFixed(precision)}
               </div>
             </div>
             <div>
               <div className="text-gray-400 font-medium">24h Low</div>
-              <div className="font-medium text-rose-500">
+              <div className="font-semibold text-rose-500">
                 ${(ticker.low24h || price * 0.99).toFixed(precision)}
               </div>
             </div>
@@ -236,3 +243,4 @@ export default function QuoteSheet({
     </div>
   );
 }
+

@@ -224,8 +224,13 @@ export default function OrderModal({
       <div className="absolute inset-0" onClick={onClose} />
 
       {/* Main Order Window */}
-      <div className="relative w-full sm:max-w-md bg-white dark:bg-surface-darkPanel rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[92vh] flex flex-col">
+      <div className="relative w-full sm:max-w-md bg-white dark:bg-surface-darkPanel rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[92vh] flex flex-col pb-safe">
         
+        {/* Mobile Drag Indicator Handle */}
+        <div className="sm:hidden pt-2.5 pb-1 flex justify-center cursor-pointer" onClick={onClose}>
+          <div className="w-12 h-1.5 rounded-full bg-gray-300 dark:bg-surface-darkBorder" />
+        </div>
+
         {/* Styled Header Banner */}
         <div className={`px-4 py-3 sm:py-4 flex items-center justify-between transition-colors ${
           isBuy 
@@ -234,7 +239,7 @@ export default function OrderModal({
         }`}>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-medium uppercase tracking-wider px-2 py-0.5 rounded bg-black/20">
+              <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/20">
                 {isBuy 
                   ? (isShortPosition ? (isOption ? 'BUY TO COVER (Option)' : 'BUY / COVER') : (isOption ? 'BUY OPTION' : 'BUY')) 
                   : (isLongPosition ? (isOption ? 'EXIT OPTION' : 'SELL / EXIT') : (isOption ? 'WRITE OPTION' : 'SHORT SELL'))
@@ -252,7 +257,7 @@ export default function OrderModal({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-black/20 text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-black/20 text-white transition-colors active:scale-90"
           >
             <X className="w-5 h-5" />
           </button>
@@ -263,7 +268,7 @@ export default function OrderModal({
           <button
             type="button"
             onClick={() => { setSide('BUY'); setError(null); }}
-            className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`py-2 text-xs font-bold rounded-lg transition-all active:scale-95 ${
               isBuy
                 ? 'bg-blue-600 text-white shadow-sm'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -274,7 +279,7 @@ export default function OrderModal({
           <button
             type="button"
             onClick={() => { setSide('SELL'); setError(null); }}
-            className={`py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`py-2 text-xs font-bold rounded-lg transition-all active:scale-95 ${
               !isBuy
                 ? 'bg-orange-600 text-white shadow-sm'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
