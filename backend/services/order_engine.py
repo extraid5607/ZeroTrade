@@ -214,8 +214,8 @@ class OrderEngine:
                     order_id = cursor.lastrowid
 
                     cursor.execute("""
-                        INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                        VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, 0.0, 0.0)
+                        INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                        VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, 0.0, 0.0, 0)
                     """, (user_id, order_id, symbol, asset_class, quantity, fill_price, fill_price, effective_leverage))
 
                     self._invalidate_cache(user_id)
@@ -271,8 +271,8 @@ class OrderEngine:
                         order_id = cursor.lastrowid
 
                         cursor.execute("""
-                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                            VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?)
+                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                            VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
                         self._invalidate_cache(user_id)
@@ -334,8 +334,8 @@ class OrderEngine:
                         order_id = cursor.lastrowid
 
                         cursor.execute("""
-                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                            VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?)
+                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                            VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
                         self._invalidate_cache(user_id)
@@ -394,8 +394,8 @@ class OrderEngine:
                         order_id = cursor.lastrowid
 
                         cursor.execute("""
-                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                            VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?)
+                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                            VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
                         self._invalidate_cache(user_id)
@@ -457,8 +457,8 @@ class OrderEngine:
                         order_id = cursor.lastrowid
 
                         cursor.execute("""
-                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                            VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?)
+                            INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                            VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
                         self._invalidate_cache(user_id)
@@ -534,8 +534,8 @@ class OrderEngine:
                     order_id = cursor.lastrowid
 
                     cursor.execute("""
-                        INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                        VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, 0.0, 0.0)
+                        INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                        VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, 0.0, 0.0, 0)
                     """, (user_id, order_id, symbol, asset_class, quantity, fill_price, fill_price, effective_leverage))
 
                     self._invalidate_cache(user_id)
@@ -771,7 +771,7 @@ class OrderEngine:
                                     )
 
                                 cursor.execute(
-                                    "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, 0.0, 0.0)",
+                                    "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, 0.0, 0.0, 0)",
                                     (user_id, order_id, symbol, asset_class, qty, fill_price, fill_price, lev)
                                 )
                             else:
@@ -794,7 +794,7 @@ class OrderEngine:
                                         cursor.execute("UPDATE positions SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (-rem, pos["id"]))
 
                                     cursor.execute(
-                                        "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?)",
+                                        "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)",
                                         (user_id, order_id, symbol, asset_class, qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct)
                                     )
                                 else:
@@ -807,7 +807,7 @@ class OrderEngine:
                                     cursor.execute("UPDATE users SET virtual_cash = virtual_cash + ? WHERE id = ?", (margin_refund + realized_pnl, user_id))
                                     cursor.execute("UPDATE positions SET quantity = ?, avg_entry_price = ?, leverage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_long, fill_price, lev, pos["id"]))
                                     cursor.execute(
-                                        "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?)",
+                                        "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)",
                                         (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct)
                                     )
 
@@ -833,7 +833,7 @@ class OrderEngine:
                                         cursor.execute("DELETE FROM positions WHERE id = ?", (pos["id"],))
                                     else:
                                         cursor.execute("UPDATE positions SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (rem, pos["id"]))
-                                    cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?)", (user_id, order_id, symbol, asset_class, qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct))
+                                    cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)", (user_id, order_id, symbol, asset_class, qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct))
                                 else:
                                     closed_qty = long_qty
                                     new_short = qty - long_qty
@@ -845,7 +845,7 @@ class OrderEngine:
                                     cursor.execute("UPDATE users SET virtual_cash = virtual_cash + ? WHERE id = ?", (net_change, user_id))
 
                                     cursor.execute("UPDATE positions SET quantity = ?, avg_entry_price = ?, leverage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (-new_short, fill_price, lev, pos["id"]))
-                                    cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?)", (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct))
+                                    cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)", (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct))
                             else:
                                 # Short sell limit fill
                                 new_short_margin = (fill_price * qty) / lev
@@ -862,7 +862,7 @@ class OrderEngine:
                                     comb_m = old_m + new_short_margin
                                     comb_lev = ((comb_short * comb_avg) / comb_m) if comb_m > 0 else 1.0
                                     cursor.execute("UPDATE positions SET quantity = ?, avg_entry_price = ?, leverage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (-comb_short, comb_avg, comb_lev, pos["id"]))
-                                cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, 0.0, 0.0)", (user_id, order_id, symbol, asset_class, qty, fill_price, fill_price, lev))
+                                cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, 0.0, 0.0, 0)", (user_id, order_id, symbol, asset_class, qty, fill_price, fill_price, lev))
 
                         cursor.execute("""
                             UPDATE orders
@@ -966,7 +966,7 @@ class OrderEngine:
                        SUM(realized_pnl) as realized_pnl,
                        MAX(timestamp) as closed_at
                 FROM transactions
-                WHERE user_id = ? AND realized_pnl != 0.0 AND timestamp >= ?
+                WHERE user_id = ? AND (is_close = 1 OR realized_pnl != 0.0) AND timestamp >= ?
                 GROUP BY symbol, asset_class, side
                 ORDER BY closed_at DESC
             """, (user_id, today_start_utc))
@@ -1075,7 +1075,7 @@ class OrderEngine:
                 SELECT t.*, u.display_name
                 FROM transactions t
                 JOIN users u ON u.id = t.user_id
-                WHERE t.user_id = ? AND t.realized_pnl != 0.0
+                WHERE t.user_id = ? AND (t.is_close = 1 OR t.realized_pnl != 0.0)
             """
             params = [user_id]
 

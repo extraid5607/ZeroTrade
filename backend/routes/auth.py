@@ -48,6 +48,7 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         raise HTTPException(status_code=401, detail="Invalid or expired session token.")
 
     user_id = int(payload["sub"])
+    email = payload.get("email")
     now = time.time()
     cached = _user_cache.get(user_id)
     if cached and cached[1] > now:
@@ -57,15 +58,27 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         cursor = conn.cursor()
         cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
+
+        if not user and email:
+            cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE email = ?", (email,))
+            user = cursor.fetchone()
+
         if not user:
             # Check Firebase Firestore in case local DB restarted
             try:
                 from backend.services.firebase_sync import get_firestore_client
                 f_db = get_firestore_client()
                 if f_db:
+                    data = None
                     doc = f_db.collection("users").document(str(user_id)).get()
                     if doc.exists:
                         data = doc.to_dict()
+                    elif email:
+                        docs = list(f_db.collection("users").where("email", "==", email).limit(1).stream())
+                        if docs:
+                            data = docs[0].to_dict()
+
+                    if data:
                         cursor.execute("""
                             INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin)
                             VALUES (?, ?, ?, ?, ?, ?)
@@ -77,16 +90,18 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
                             data["id"], data["email"], data.get("password_hash", ""),
                             data["display_name"], data["virtual_cash"], data.get("is_admin", 0)
                         ))
-                        cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE id = ?", (user_id,))
+                        cursor.execute("SELECT id, email, display_name, virtual_cash, is_admin, created_at FROM users WHERE email = ?", (data["email"],))
                         user = cursor.fetchone()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Firebase fetch in get_current_user error: {e}")
 
         if not user:
             raise HTTPException(status_code=401, detail="User account not found.")
 
         user_dict = dict(user)
         _user_cache[user_id] = (user_dict, now + _USER_CACHE_TTL)
+        if user_dict.get("id") and user_dict["id"] != user_id:
+            _user_cache[user_dict["id"]] = (user_dict, now + _USER_CACHE_TTL)
         return user_dict
 
 

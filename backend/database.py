@@ -197,6 +197,7 @@ def init_db():
                 quantity DOUBLE PRECISION NOT NULL,
                 avg_entry_price DOUBLE PRECISION NOT NULL,
                 leverage DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+                expiry_date VARCHAR(32),
                 updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(user_id, symbol)
             );
@@ -213,6 +214,7 @@ def init_db():
                 quantity DOUBLE PRECISION NOT NULL,
                 limit_price DOUBLE PRECISION,
                 leverage DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+                expiry_date VARCHAR(32),
                 status VARCHAR(32) NOT NULL,
                 filled_price DOUBLE PRECISION,
                 filled_at TIMESTAMP WITH TIME ZONE,
@@ -234,6 +236,7 @@ def init_db():
                 leverage DOUBLE PRECISION NOT NULL DEFAULT 1.0,
                 realized_pnl DOUBLE PRECISION DEFAULT 0.0,
                 pnl_percent DOUBLE PRECISION DEFAULT 0.0,
+                is_close INTEGER DEFAULT 0,
                 timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """)
@@ -340,28 +343,32 @@ def init_db():
                 leverage REAL NOT NULL DEFAULT 1.0,
                 realized_pnl REAL DEFAULT 0.0,
                 pnl_percent REAL DEFAULT 0.0,
+                is_close INTEGER DEFAULT 0,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             """)
 
-            # Safe column migrations for existing SQLite databases
-            for tbl, col, col_def in [
-                ("users", "is_admin", "INTEGER DEFAULT 0"),
-                ("positions", "leverage", "REAL DEFAULT 1.0"),
-                ("positions", "expiry_date", "TEXT"),
-                ("orders", "leverage", "REAL DEFAULT 1.0"),
-                ("orders", "expiry_date", "TEXT"),
-                ("transactions", "leverage", "REAL DEFAULT 1.0"),
-                ("transactions", "entry_price", "REAL DEFAULT 0.0"),
-                ("transactions", "pnl_percent", "REAL DEFAULT 0.0"),
-                ("payment_orders", "admin_notes", "TEXT"),
-                ("payment_orders", "approved_at", "TIMESTAMP"),
-            ]:
-                try:
-                    cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN {col} {col_def}")
-                except Exception:
-                    pass
+        # Safe column migrations for existing databases (Postgres and SQLite)
+        for tbl, col, col_def in [
+            ("users", "is_admin", "INTEGER DEFAULT 0"),
+            ("positions", "leverage", "DOUBLE PRECISION DEFAULT 1.0" if IS_POSTGRES else "REAL DEFAULT 1.0"),
+            ("positions", "expiry_date", "VARCHAR(32)" if IS_POSTGRES else "TEXT"),
+            ("orders", "leverage", "DOUBLE PRECISION DEFAULT 1.0" if IS_POSTGRES else "REAL DEFAULT 1.0"),
+            ("orders", "expiry_date", "VARCHAR(32)" if IS_POSTGRES else "TEXT"),
+            ("transactions", "leverage", "DOUBLE PRECISION DEFAULT 1.0" if IS_POSTGRES else "REAL DEFAULT 1.0"),
+            ("transactions", "entry_price", "DOUBLE PRECISION DEFAULT 0.0" if IS_POSTGRES else "REAL DEFAULT 0.0"),
+            ("transactions", "pnl_percent", "DOUBLE PRECISION DEFAULT 0.0" if IS_POSTGRES else "REAL DEFAULT 0.0"),
+            ("transactions", "is_close", "INTEGER DEFAULT 0"),
+            ("payment_orders", "admin_notes", "TEXT"),
+            ("payment_orders", "approved_at", "TIMESTAMP WITH TIME ZONE" if IS_POSTGRES else "TIMESTAMP"),
+        ]:
+            try:
+                cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_def}" if IS_POSTGRES else f"ALTER TABLE {tbl} ADD COLUMN {col} {col_def}")
+            except Exception:
+                pass
+
+        if not IS_POSTGRES:
 
             cursor.execute("""
             CREATE TABLE IF NOT EXISTS price_alerts (

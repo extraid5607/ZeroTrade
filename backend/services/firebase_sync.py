@@ -237,16 +237,21 @@ def restore_from_firebase():
             pos_docs = list(db.collection("positions").stream())
             for p in pos_docs:
                 data = p.to_dict()
+                qty = float(data.get("quantity") or 0.0)
+                if abs(qty) <= 1e-7:
+                    continue
                 cursor.execute("""
-                    INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage, expiry_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(user_id, symbol) DO UPDATE SET
                         quantity = excluded.quantity,
                         avg_entry_price = excluded.avg_entry_price,
-                        leverage = excluded.leverage
+                        leverage = excluded.leverage,
+                        expiry_date = excluded.expiry_date
                 """, (
-                    data["user_id"], data["symbol"], data["asset_class"],
-                    data["quantity"], data["avg_entry_price"], data.get("leverage", 1.0)
+                    data["user_id"], data["symbol"], data.get("asset_class", "stock"),
+                    qty, float(data.get("avg_entry_price", 0.0)), float(data.get("leverage", 1.0)),
+                    data.get("expiry_date")
                 ))
 
             # 3. Restore Payment Orders

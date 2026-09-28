@@ -232,8 +232,8 @@ def settle_expired_options(target_user_id: Optional[int] = None) -> List[Dict[st
 
                 # Record transaction
                 cursor.execute("""
-                    INSERT INTO transactions (user_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                    VALUES (?, ?, 'options', 'SELL', ?, ?, ?, 1.0, ?, ?)
+                    INSERT INTO transactions (user_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                    VALUES (?, ?, 'options', 'SELL', ?, ?, ?, 1.0, ?, ?, 1)
                 """, (user_id, symbol, abs_qty, intrinsic_per_contract, entry_price, realized_pnl, pnl_percent))
 
                 settle_info = {
@@ -268,8 +268,8 @@ def settle_expired_options(target_user_id: Optional[int] = None) -> List[Dict[st
 
                 # Record transaction
                 cursor.execute("""
-                    INSERT INTO transactions (user_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent)
-                    VALUES (?, ?, 'options', 'BUY', ?, ?, ?, ?, ?, ?)
+                    INSERT INTO transactions (user_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
+                    VALUES (?, ?, 'options', 'BUY', ?, ?, ?, ?, ?, ?, 1)
                 """, (user_id, symbol, abs_qty, intrinsic_per_contract, entry_price, pos_lev, realized_pnl, pnl_percent))
 
                 settle_info = {
