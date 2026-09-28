@@ -48,6 +48,22 @@ async def _option_expiry_loop():
             pass
 
 
+async def _self_ping_loop():
+    """Keep Render free instance awake by pinging its own health endpoint."""
+    render_url = os.environ.get("RENDER_EXTERNAL_URL") or "https://zerovega.onrender.com"
+    health_url = f"{render_url.rstrip('/')}/health"
+    await asyncio.sleep(45)  # Initial wait after startup
+    while True:
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(health_url)
+                logger.debug(f"Render keep-alive ping status: {resp.status_code}")
+        except Exception as e:
+            logger.debug(f"Render keep-alive ping notice: {e}")
+        await asyncio.sleep(300)  # Ping every 5 minutes (Render sleeps at 15 mins)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
@@ -69,11 +85,13 @@ async def lifespan(app: FastAPI):
 
     keep_alive_task = asyncio.create_task(_db_keep_alive_loop())
     settle_task = asyncio.create_task(_option_expiry_loop())
+    self_ping_task = asyncio.create_task(_self_ping_loop())
 
     yield
     # Shutdown
     keep_alive_task.cancel()
     settle_task.cancel()
+    self_ping_task.cancel()
     logger.info("Shutting down MarketDataHub...")
     await data_hub.stop()
 
@@ -106,11 +124,15 @@ app.include_router(options.router)
 app.include_router(billing.router)
 
 
+@app.get("/health")
+@app.get("/ping")
 @app.get("/api/health")
 def health_check():
+    import time
     return {
         "status": "healthy",
-        "service": "ZeroTrade",
+        "service": "ZeroVega",
+        "timestamp": int(time.time()),
         "activeSubscribers": len(data_hub.connected_clients),
         "trackedSymbols": len(data_hub.tickers),
         "disclaimer": "Simulated trading only — no real money involved."
