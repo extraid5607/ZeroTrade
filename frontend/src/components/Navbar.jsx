@@ -129,22 +129,24 @@ export default function Navbar({
         <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
           <div className="flex items-center justify-between h-12 md:h-14">
             
-            {/* Left: Brand Logo */}
-            <div className="flex items-center gap-2 sm:gap-3">
-              <div className="cursor-pointer active:scale-95 transition-transform" onClick={() => setActiveTab('watchlist')}>
+            {/* Left: Brand Logo & Mobile Quick Index Chip */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="cursor-pointer active:scale-95 transition-transform shrink-0" onClick={() => setActiveTab('watchlist')}>
                 <Logo size="sm" />
               </div>
 
-              {/* Mobile Live Ticker Chip (Ultra-compact, clickable to cycle) */}
+              {/* Mobile Live Ticker Chip (Responsive width & clean alignment) */}
               <div 
                 onClick={() => setMobileTickerIndex(prev => (prev + 1) % Math.max(1, topMobileTickers.length))}
-                className="md:hidden flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-100 dark:bg-surface-darkCard border border-gray-200/80 dark:border-surface-darkBorder/80 text-[11px] font-medium cursor-pointer active:scale-95 transition-transform"
+                className="md:hidden flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-surface-darkCard border border-gray-200/80 dark:border-surface-darkBorder/80 text-[11px] font-medium cursor-pointer active:scale-95 transition-transform min-w-0 shrink"
                 title="Tap to cycle major market indexes"
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-                <span className="text-gray-500 dark:text-gray-400">{activeMobileTicker.symbol === '^GSPC' ? 'S&P' : activeMobileTicker.symbol === '^IXIC' ? 'NDX' : activeMobileTicker.symbol.replace('USDT', '')}:</span>
-                <NumberTicker value={Number(activeMobileTicker.price || 0)} decimalPlaces={activeMobileTicker.price < 5 ? 4 : 2} prefix="$" className="font-semibold text-gray-900 dark:text-white" />
-                <span className={`text-[10px] tabular-nums font-semibold ${activeMobileTicker.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                <span className="text-gray-500 dark:text-gray-400 shrink-0">{activeMobileTicker.symbol === '^GSPC' ? 'S&P' : activeMobileTicker.symbol === '^IXIC' ? 'NDX' : activeMobileTicker.symbol.replace('USDT', '')}:</span>
+                <span className="font-semibold text-gray-900 dark:text-white tabular-nums truncate">
+                  ${Number(activeMobileTicker.price || 0).toLocaleString('en-US', { minimumFractionDigits: activeMobileTicker.price < 5 ? 3 : 2, maximumFractionDigits: activeMobileTicker.price < 5 ? 3 : 2 })}
+                </span>
+                <span className={`text-[10px] tabular-nums font-semibold shrink-0 ${activeMobileTicker.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {activeMobileTicker.changePercent24h >= 0 ? '+' : ''}{Number(activeMobileTicker.changePercent24h || 0).toFixed(1)}%
                 </span>
               </div>
