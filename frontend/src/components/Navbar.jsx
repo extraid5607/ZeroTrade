@@ -19,6 +19,8 @@ import {
   TrendingDown
 } from 'lucide-react';
 import Logo from './Logo';
+import NumberTicker from './magicui/NumberTicker';
+import AnimatedShinyText from './magicui/AnimatedShinyText';
 
 export default function Navbar({
   activeTab,
@@ -79,7 +81,7 @@ export default function Navbar({
             {spx && (
               <div className="flex items-center gap-1.5">
                 <span className="text-gray-500 font-sans">S&amp;P 500:</span>
-                <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${spx.price.toFixed(2)}</span>
+                <NumberTicker value={spx.price} decimalPlaces={2} prefix="$" className="font-semibold text-gray-900 dark:text-white" />
                 <span className={`text-[10px] font-medium ${spx.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {spx.changePercent24h >= 0 ? '+' : ''}{spx.changePercent24h.toFixed(2)}%
                 </span>
@@ -89,7 +91,7 @@ export default function Navbar({
             {ndx && (
               <div className="flex items-center gap-1.5">
                 <span className="text-gray-500 font-sans">NASDAQ:</span>
-                <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${ndx.price.toFixed(2)}</span>
+                <NumberTicker value={ndx.price} decimalPlaces={2} prefix="$" className="font-semibold text-gray-900 dark:text-white" />
                 <span className={`text-[10px] font-medium ${ndx.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {ndx.changePercent24h >= 0 ? '+' : ''}{ndx.changePercent24h.toFixed(2)}%
                 </span>
@@ -99,7 +101,7 @@ export default function Navbar({
             {btc && (
               <div className="flex items-center gap-1.5">
                 <span className="text-gray-500 font-sans">BTC:</span>
-                <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${btc.price.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                <NumberTicker value={btc.price} decimalPlaces={2} prefix="$" className="font-semibold text-gray-900 dark:text-white" />
                 <span className={`text-[10px] font-medium ${btc.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {btc.changePercent24h >= 0 ? '+' : ''}{btc.changePercent24h.toFixed(2)}%
                 </span>
@@ -110,14 +112,15 @@ export default function Navbar({
           <div className="flex items-center gap-4 tabular-nums font-medium text-[11px]">
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
               <span>Capital:</span>
-              <span className="font-bold text-gray-900 dark:text-white">${cash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <NumberTicker value={cash} decimalPlaces={2} prefix="$" className="font-bold text-gray-900 dark:text-white" />
             </div>
 
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
               <span>Day P&amp;L:</span>
-              <span className={`font-bold px-1.5 py-0.2 rounded-md ${isPnlPositive ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'}`}>
-                {isPnlPositive ? '+' : ''}${netPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </span>
+              <div className={`font-bold px-1.5 py-0.2 rounded-md flex items-center ${isPnlPositive ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'}`}>
+                <span>{isPnlPositive ? '+' : ''}</span>
+                <NumberTicker value={netPnl} decimalPlaces={2} prefix="$" className={isPnlPositive ? 'text-emerald-500' : 'text-rose-500'} />
+              </div>
             </div>
           </div>
         </div>
@@ -140,7 +143,7 @@ export default function Navbar({
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
                 <span className="text-gray-500 dark:text-gray-400">{activeMobileTicker.symbol === '^GSPC' ? 'S&P' : activeMobileTicker.symbol === '^IXIC' ? 'NDX' : activeMobileTicker.symbol.replace('USDT', '')}:</span>
-                <span className="font-semibold text-gray-900 dark:text-white tabular-nums">${Number(activeMobileTicker.price || 0).toLocaleString('en-US', { minimumFractionDigits: activeMobileTicker.price < 5 ? 4 : 2, maximumFractionDigits: activeMobileTicker.price < 5 ? 4 : 2 })}</span>
+                <NumberTicker value={Number(activeMobileTicker.price || 0)} decimalPlaces={activeMobileTicker.price < 5 ? 4 : 2} prefix="$" className="font-semibold text-gray-900 dark:text-white" />
                 <span className={`text-[10px] tabular-nums font-semibold ${activeMobileTicker.changePercent24h >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                   {activeMobileTicker.changePercent24h >= 0 ? '+' : ''}{Number(activeMobileTicker.changePercent24h || 0).toFixed(1)}%
                 </span>
@@ -248,7 +251,9 @@ export default function Navbar({
                   title="Capital Packages & UPI Upgrades"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Upgrade</span>
+                  <span className="hidden sm:inline">
+                    <AnimatedShinyText className="text-white">Upgrade</AnimatedShinyText>
+                  </span>
                 </button>
               )}
 

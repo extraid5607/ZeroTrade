@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, BarChart2, Layers, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Sparkles } from 'lucide-react';
+import BorderBeam from './magicui/BorderBeam';
 
 export default function QuoteSheet({
   isOpen,
@@ -48,6 +49,7 @@ export default function QuoteSheet({
 
       {/* Sheet / Modal */}
       <div className="relative w-full sm:max-w-lg bg-white dark:bg-surface-darkPanel rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[90vh] flex flex-col pb-safe">
+        <BorderBeam size={220} duration={10} colorFrom="#3b82f6" colorTo="#06b6d4" />
         
         {/* Mobile Drag Indicator Handle */}
         <div className="sm:hidden pt-2.5 pb-1 flex justify-center cursor-pointer" onClick={onClose}>

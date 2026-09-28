@@ -23,6 +23,8 @@ import {
   Check,
   ShieldCheck
 } from 'lucide-react';
+import { NumberTicker } from './magicui/NumberTicker';
+import { BorderBeam } from './magicui/BorderBeam';
 
 export default function PortfolioView({
   portfolio,
@@ -143,7 +145,7 @@ export default function PortfolioView({
               <span>Margin Blocked</span>
             </div>
             <div className="text-base sm:text-xl font-semibold tabular-nums text-gray-900 dark:text-white mt-0.5">
-              ${marginInvested.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <NumberTicker value={marginInvested} prefix="$" decimalPlaces={2} />
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5">
               Nominal: ${marketVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -156,7 +158,7 @@ export default function PortfolioView({
               Total Equity
             </div>
             <div className="text-base sm:text-xl font-semibold tabular-nums text-gray-900 dark:text-white mt-0.5">
-              ${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <NumberTicker value={totalEquity} prefix="$" decimalPlaces={2} />
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5">
               Cash: ${cash.toLocaleString('en-US', { minimumFractionDigits: 2 })}
@@ -169,7 +171,11 @@ export default function PortfolioView({
               Realized P&amp;L (Today)
             </div>
             <div className={`text-base sm:text-xl font-semibold tabular-nums mt-0.5 ${realizedPnlToday >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {realizedPnlToday >= 0 ? '+' : ''}${realizedPnlToday.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              <NumberTicker 
+                value={Math.abs(realizedPnlToday)} 
+                prefix={realizedPnlToday >= 0 ? '+$' : '-$'} 
+                decimalPlaces={2} 
+              />
             </div>
             <div className="text-[10px] text-gray-400 mt-0.5">
               All-time: <span className={`font-medium ${totalRealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{totalRealizedPnl >= 0 ? '+' : ''}${totalRealizedPnl.toFixed(2)}</span>
@@ -182,7 +188,11 @@ export default function PortfolioView({
               Total P&amp;L (Today)
             </div>
             <div className={`text-lg sm:text-2xl font-semibold tabular-nums mt-0.5 ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-              {isPositive ? '+' : ''}${dayPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              <NumberTicker 
+                value={Math.abs(dayPnl)} 
+                prefix={isPositive ? '+$' : '-$'} 
+                decimalPlaces={2} 
+              />
             </div>
             <div className="text-[11px] text-gray-400 mt-0.5">
               Unrealized: <strong className={`font-medium tabular-nums ${unrealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}</strong>
@@ -422,6 +432,7 @@ export default function PortfolioView({
 
             {/* Modal / Bottom Sheet */}
             <div className="relative w-full sm:max-w-lg bg-white dark:bg-surface-darkPanel rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[90vh] flex flex-col">
+              <BorderBeam size={220} duration={14} delay={0} colorFrom="#3b82f6" colorTo="#8b5cf6" />
               
               {/* Header */}
               <div className="p-4 border-b border-gray-100 dark:border-surface-darkBorder flex items-start justify-between">

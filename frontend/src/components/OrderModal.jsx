@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowUpRight, ArrowDownRight, ShieldCheck, Info, Check, Plus, Minus, Zap, AlertTriangle } from 'lucide-react';
+import BorderBeam from './magicui/BorderBeam';
 
 const LEVERAGE_OPTIONS = [1, 2, 5, 10, 20];
 
@@ -225,6 +226,7 @@ export default function OrderModal({
 
       {/* Main Order Window */}
       <div className="relative w-full sm:max-w-md bg-white dark:bg-surface-darkPanel rounded-t-3xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[92vh] flex flex-col pb-safe">
+        <BorderBeam size={220} duration={10} colorFrom={isBuy ? "#3b82f6" : "#ea580c"} colorTo={isBuy ? "#06b6d4" : "#f59e0b"} />
         
         {/* Mobile Drag Indicator Handle */}
         <div className="sm:hidden pt-2.5 pb-1 flex justify-center cursor-pointer" onClick={onClose}>
