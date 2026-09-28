@@ -36,11 +36,14 @@ export default function OptionChain({ onSelectOptionToTrade }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [mobileView, setMobileView] = useState('both'); // 'both' | 'calls' | 'puts'
+  const [lastUpdated, setLastUpdated] = useState(Date.now());
 
-  // Fetch option chain
-  const fetchChain = async (sym = selectedSymbol, exp = selectedExp, count = strikeCount) => {
-    setLoading(true);
-    setError(null);
+  // Fetch option chain (supports silent background polling)
+  const fetchChain = async (sym = selectedSymbol, exp = selectedExp, count = strikeCount, isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       let url = `/api/options/chain?symbol=${encodeURIComponent(sym)}&strike_count=${count}`;
       if (exp) {
@@ -53,20 +56,33 @@ export default function OptionChain({ onSelectOptionToTrade }) {
       }
 
       setChainData(data);
+      setLastUpdated(Date.now());
       if (!exp && data.selectedExpiration) {
         setSelectedExp(data.selectedExpiration);
       }
     } catch (err) {
       console.error("Option chain error:", err);
-      setError(err.message);
+      if (!isSilent) {
+        setError(err.message);
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     fetchChain(selectedSymbol, '', strikeCount);
   }, [selectedSymbol, strikeCount]);
+
+  // Live Auto-Refresh every 4 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchChain(selectedSymbol, selectedExp, strikeCount, true);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [selectedSymbol, selectedExp, strikeCount]);
 
   const handleExpChange = (e) => {
     const newExp = e.target.value;
