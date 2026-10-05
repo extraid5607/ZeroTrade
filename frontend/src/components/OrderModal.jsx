@@ -492,7 +492,18 @@ export default function OrderModal({
           {/* Error Notice */}
           {error && (
             <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 text-xs text-rose-600 dark:text-rose-400">
-              {error}
+              <p>{error}</p>
+              {error.includes('zerobossai@gmail.com') && (
+                <div className="mt-2 pt-2 border-t border-rose-200 dark:border-rose-900/50 flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-rose-700 dark:text-rose-300">Need assistance?</span>
+                  <a
+                    href={`mailto:zerobossai@gmail.com?subject=Trading%20Issue%20Appeal&body=Hello%20Support,%0A%0AI%20received%20this%20error:%20${encodeURIComponent(error)}`}
+                    className="inline-flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-300 hover:underline"
+                  >
+                    zerobossai@gmail.com &rarr;
+                  </a>
+                </div>
+              )}
             </div>
           )}
 

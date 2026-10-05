@@ -16,7 +16,9 @@ import {
   Sparkles,
   Cpu,
   Zap,
-  Smartphone
+  Smartphone,
+  Mail,
+  AlertOctagon
 } from 'lucide-react';
 import Logo from './Logo';
 import PnlReport from './PnlReport';
@@ -98,6 +100,33 @@ export default function AccountView({
         <PnlReport onBack={() => setAccountSubTab('overview')} user={user} onOpenBillingModal={onOpenBillingModal} />
       ) : (
         <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
+
+          {/* Account Frozen / Suspended Alert */}
+          {user?.isBanned && (
+            <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-500 flex items-center justify-center shrink-0">
+                  <AlertOctagon className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
+                    <span>Trading Privileges Suspended</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-rose-500 text-white">FROZEN</span>
+                  </div>
+                  <p className="text-xs text-rose-500/90 mt-0.5">
+                    Reason: <strong>{user.banReason || "Account under risk or compliance review."}</strong> For appeal or recovery, contact support at <strong className="underline">zerobossai@gmail.com</strong>
+                  </p>
+                </div>
+              </div>
+              <a
+                href={`mailto:zerobossai@gmail.com?subject=Account%20Freeze%20Appeal%20-%20User%20ID%20${user.id}&body=Hello%20Support,%0A%0AMy%20account%20(ID:%20${user.id},%20Email:%20${user.email})%20is%20currently%20frozen.%20Please%20review%20my%20case.%0A%0AThank%20you.`}
+                className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold whitespace-nowrap shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>Email Support</span>
+              </a>
+            </div>
+          )}
 
           {/* Account Depleted Notice (If funds hit zero) */}
           {isDepleted && (
@@ -351,6 +380,31 @@ export default function AccountView({
               <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-500 transition-colors" />
             </div>
 
+            {/* Official Support & Helpdesk Row */}
+            <a 
+              href="mailto:zerobossai@gmail.com"
+              className="p-3.5 sm:p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-surface-darkHover cursor-pointer transition-colors group block"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/10 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                  <Mail className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                    <span>Customer Support &amp; Help Desk</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/40">
+                      24/7
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 font-normal">zerobossai@gmail.com &bull; Inquiries, plan upgrades &amp; account issues</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hidden sm:inline">zerobossai@gmail.com</span>
+                <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 transition-colors" />
+              </div>
+            </a>
+
           </div>
 
         </div>
@@ -432,6 +486,24 @@ export default function AccountView({
                       ZeroVega features institutional order execution with sub-second fills, transparent margin requirements (1x to 20x leverage), intraday (MIS) &amp; carry-forward (CNC) support, and automated 1-Year audit P&amp;L reporting.
                     </p>
                   </div>
+
+                  {/* Official Support Email Section */}
+                  <div className="p-3.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/40 space-y-1.5">
+                    <div className="font-bold text-gray-900 dark:text-white text-xs flex items-center gap-1.5">
+                      <Mail className="w-3.5 h-3.5 text-blue-500" />
+                      <span>Official Trader Support &amp; Inquiries:</span>
+                    </div>
+                    <p className="text-[11px] text-gray-600 dark:text-gray-300">
+                      For technical assistance, account recovery, billing verification, or general questions:
+                    </p>
+                    <a 
+                      href="mailto:zerobossai@gmail.com" 
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>zerobossai@gmail.com</span>
+                    </a>
+                  </div>
                 </>
               ) : (
                 <>
@@ -479,12 +551,25 @@ export default function AccountView({
                       We respect user privacy and do not sell, rent, or trade your strategies, order history, or contact information to third-party advertisers or marketing networks.
                     </p>
                   </div>
+
+                  <div>
+                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-1">
+                      6. Official Support &amp; Grievance Redressal
+                    </h4>
+                    <p>
+                      For privacy requests, trading suspension appeals, or support inquiries, contact our official desk at <a href="mailto:zerobossai@gmail.com" className="text-blue-600 dark:text-blue-400 font-bold underline">zerobossai@gmail.com</a>.
+                    </p>
+                  </div>
                 </>
               )}
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3.5 border-t border-gray-100 dark:border-surface-darkBorder flex justify-end bg-gray-50/50 dark:bg-surface-darkCard/50">
+            <div className="p-3.5 border-t border-gray-100 dark:border-surface-darkBorder flex items-center justify-between bg-gray-50/50 dark:bg-surface-darkCard/50">
+              <div className="text-[11px] text-gray-400 flex items-center gap-1">
+                <Mail className="w-3 h-3 text-gray-400" />
+                <span>Support: <strong>zerobossai@gmail.com</strong></span>
+              </div>
               <button
                 onClick={() => setIsLegalModalOpen(false)}
                 className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition-colors cursor-pointer"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { AlertTriangle, Info as InfoIcon, X as CloseIcon, AlertOctagon, CheckCircle2 } from 'lucide-react';
+import { AlertTriangle, Info as InfoIcon, X as CloseIcon, AlertOctagon, CheckCircle2, ShieldAlert, Mail } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Watchlist from './components/Watchlist';
 import CandleChart from './components/CandleChart';
@@ -520,6 +520,25 @@ export default function App() {
           >
             <CloseIcon className="w-3.5 h-3.5" />
           </button>
+        </div>
+      )}
+
+      {/* Account Frozen / Suspended Alert Banner (Global) */}
+      {(user?.isBanned || user?.is_banned === 1) && (
+        <div className="w-full px-4 py-2 text-xs font-semibold bg-rose-700 text-white flex items-center justify-between gap-3 shadow-md z-40 animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2 flex-1 max-w-7xl mx-auto overflow-hidden">
+            <ShieldAlert className="w-4 h-4 flex-shrink-0 animate-bounce" />
+            <span className="truncate">
+              <strong>Account Frozen:</strong> Trading suspended ({user.banReason || user.ban_reason || 'Risk compliance check'}). Appeal to <span className="underline">zerobossai@gmail.com</span>
+            </span>
+          </div>
+          <a
+            href={`mailto:zerobossai@gmail.com?subject=Account%20Freeze%20Appeal%20-%20User%20ID%20${user.id}&body=Hello%20Support,%0A%0AMy%20account%20(ID:%20${user.id},%20Email:%20${user.email})%20is%20currently%20frozen.%20Please%20review%20my%20case.%0A%0AThank%20you.`}
+            className="px-2.5 py-1 rounded bg-white/20 hover:bg-white/30 text-white font-bold flex items-center gap-1.5 transition-colors shrink-0 text-[11px]"
+          >
+            <Mail className="w-3.5 h-3.5" />
+            <span>Contact Support</span>
+          </a>
         </div>
       )}
 

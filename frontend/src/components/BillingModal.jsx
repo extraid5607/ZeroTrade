@@ -844,9 +844,14 @@ export default function BillingModal({
         </div>
 
         {/* Footer Security Disclaimer */}
-        <div className="px-4 py-2.5 bg-gray-50 dark:bg-surface-darkCard/80 border-t border-gray-100 dark:border-surface-darkBorder text-center text-[10px] text-gray-400 flex items-center justify-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-          <span>ZeroVega Simulated Trading Assessment & Educational Desk &bull; Non-refundable challenge fee</span>
+        <div className="px-4 py-2.5 bg-gray-50 dark:bg-surface-darkCard/80 border-t border-gray-100 dark:border-surface-darkBorder text-center text-[10px] text-gray-400 flex flex-col sm:flex-row items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+            <span>ZeroVega Simulated Trading Assessment &bull; Non-refundable challenge fee</span>
+          </div>
+          <div className="text-[10px]">
+            Billing Support: <a href="mailto:zerobossai@gmail.com" className="text-blue-500 hover:underline font-medium">zerobossai@gmail.com</a>
+          </div>
         </div>
 
       </div>

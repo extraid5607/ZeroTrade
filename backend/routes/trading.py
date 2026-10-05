@@ -34,7 +34,7 @@ def check_user_trading_status(user: dict):
         reason = user.get("banReason") or user.get("ban_reason") or "Account under risk/compliance review"
         raise HTTPException(
             status_code=403,
-            detail=f"Trading Suspended: Your account has been frozen by Administrator. Reason: {reason}"
+            detail=f"Trading Suspended: Your account has been frozen by Administrator. Reason: {reason}. For appeals or to restore trading access, please contact support at zerobossai@gmail.com"
         )
 
 
