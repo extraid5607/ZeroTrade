@@ -235,7 +235,7 @@ export default function AccountView({
                         From ₹199
                       </span>
                     </div>
-                    <div className="text-xs text-gray-400 font-normal">Account Resets, Pro ($25k) &amp; Elite ($100k) Challenges with instant UPI</div>
+                    <div className="text-xs text-gray-400 font-normal">Account Resets ($10k / ₹199) &amp; Pro Challenge ($25k / ₹399) with instant UPI</div>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-500 transition-colors" />
@@ -451,10 +451,10 @@ export default function AccountView({
 
                   <div>
                     <h4 className="font-bold text-sm text-gray-900 dark:text-white mb-1">
-                      2. UPI Challenges, Resets &amp; Tournament Fees
+                      2. UPI Challenges, Resets &amp; Upgrade Fees
                     </h4>
                     <p>
-                      Payments made via UPI (Merchant: <strong>harjinder1070-1@okicici</strong>) for Account Resets (₹199), Monthly Championship Passes (₹299), or Pro/Elite Challenges (₹499/₹999) are fees for simulated assessment, gamified tournament entry, and platform maintenance. Fees are non-refundable once the virtual capital is activated.
+                      Payments made via UPI (Merchant: <strong>harjinder1070-1@okicici</strong>) for Account Resets (₹199 for $10k capital) or Pro Challenge (₹399 for $25k capital) are fees for simulated assessment and platform maintenance. Fees are non-refundable once virtual capital is activated.
                     </p>
                   </div>
 

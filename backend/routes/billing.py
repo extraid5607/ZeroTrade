@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/billing", tags=["billing"])
 MONETIZATION_PLANS = [
     {
         "id": "reset_10k",
-        "name": "Account Reset (Extra Life)",
+        "name": "Account Reset / Starter ($10k)",
         "priceInr": 199,
         "virtualCash": 10000.0,
         "badge": "POPULAR",
@@ -29,53 +29,23 @@ MONETIZATION_PLANS = [
         "features": [
             "$10,000.00 Virtual Capital Balance Reset",
             "Clear all liquidated & negative positions",
-            "Full access to 20x Futures & US Options",
+            "Full 1x–20x Futures & Margin leverage",
             "Verified UPI Bank Confirmation"
         ]
     },
     {
         "id": "tier_25k",
         "name": "Pro Trader Challenge ($25k)",
-        "priceInr": 499,
+        "priceInr": 399,
         "virtualCash": 25000.0,
-        "badge": "PRO",
+        "badge": "PRO TIER",
         "popular": False,
         "description": "Upgrade your simulated capital to $25,000.00 for pro-scale swing trading.",
         "features": [
             "$25,000.00 High-Capacity Virtual Capital",
-            "Up to 20x Leverage on Futures & Stocks",
-            "Complete CBOE US Option Chain Trading",
+            "Up to 20x Leverage on Futures & Equities",
+            "Multi-Asset Swing Trading Power",
             "Detailed 1-Year P&L Statement Export"
-        ]
-    },
-    {
-        "id": "tier_100k",
-        "name": "Elite Whale Challenge ($100k)",
-        "priceInr": 999,
-        "virtualCash": 100000.0,
-        "badge": "BEST VALUE",
-        "popular": False,
-        "description": "Institutional-grade $100,000.00 virtual funding package for serious traders.",
-        "features": [
-            "$100,000.00 Institutional Virtual Capital",
-            "Unrestricted Multi-Position Options Writing",
-            "Priority Global Leaderboard Ranking",
-            "VIP Trader Profile Status"
-        ]
-    },
-    {
-        "id": "tournament_pass",
-        "name": "Monthly Tournament VIP Pass",
-        "priceInr": 299,
-        "virtualCash": 10000.0,
-        "badge": "COMPETITION",
-        "popular": False,
-        "description": "Compete with top traders in the monthly championship with $10,000 capital.",
-        "features": [
-            "Championship Entry with $10,000 Capital",
-            "Top 5 P&L Prize Pool Eligibility",
-            "Live Contest Leaderboard Tracking",
-            "Verified Contestant Profile Badge"
         ]
     }
 ]

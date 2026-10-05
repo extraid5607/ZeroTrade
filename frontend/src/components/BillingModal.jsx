@@ -29,7 +29,7 @@ const MERCHANT_NAME = "ZeroVega";
 const PLANS = [
   {
     id: 'reset_10k',
-    name: 'Account Reset (Extra Life)',
+    name: 'Account Reset / Starter ($10k)',
     priceInr: 199,
     virtualCash: 10000,
     badge: 'POPULAR',
@@ -40,59 +40,25 @@ const PLANS = [
     features: [
       'Instant $10,000.00 virtual capital reset',
       'Wipe all liquidated / negative positions',
-      'Unlocks 20x Futures & US Options',
+      'Full 1x–20x Futures & Margin leverage',
       'Verified UPI Bank Confirmation'
     ]
   },
   {
     id: 'tier_25k',
     name: 'Pro Trader Challenge ($25k)',
-    priceInr: 499,
+    priceInr: 399,
     virtualCash: 25000,
-    badge: 'PRO',
+    badge: 'PRO TIER',
     popular: false,
     icon: Zap,
     color: 'from-purple-600 to-indigo-600',
     description: 'Upgrade your account to $25,000.00 capital for swing & multi-position trading.',
     features: [
       '$25,000.00 High-Capacity Virtual Balance',
-      '20x Multiplier on Futures & Stocks',
-      'Full CBOE Options Institutional Feeds',
+      'Full 1x–20x Multiplier on Futures & Equities',
+      'Multi-Asset Swing Trading Power',
       '1-Year P&L Statement Access'
-    ]
-  },
-  {
-    id: 'tier_100k',
-    name: 'Elite Whale Challenge ($100k)',
-    priceInr: 999,
-    virtualCash: 100000,
-    badge: 'BEST VALUE',
-    popular: false,
-    icon: TrendingUp,
-    color: 'from-amber-500 to-orange-600',
-    description: 'Institutional-scale $100,000.00 capital for high-volume options writing.',
-    features: [
-      '$100,000.00 Institutional Virtual Capital',
-      'Unrestricted Multi-Strike Option Writing',
-      'Priority Global Leaderboard Ranking',
-      'Elite VIP Badge on Profile'
-    ]
-  },
-  {
-    id: 'tournament_pass',
-    name: 'Monthly Championship Pass',
-    priceInr: 299,
-    virtualCash: 10000,
-    badge: 'CONTEST',
-    popular: false,
-    icon: Award,
-    color: 'from-emerald-600 to-teal-600',
-    description: 'Enter the monthly trading competition with $10,000 capital & win rewards.',
-    features: [
-      'Entry into Monthly Trader Contest',
-      '$10,000.00 Verified Competition Capital',
-      'Top 5 Trader Prize Pool Eligibility',
-      'Verified Contestant Badge'
     ]
   }
 ];
