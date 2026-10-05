@@ -216,25 +216,13 @@ export default function AccountView({
               </div>
 
               <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder">
-                <div className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider flex items-center justify-between">
-                  <span>Total Portfolio Equity</span>
-                  {!isPaid && <Lock className="w-2.5 h-2.5 text-amber-500" />}
-                </div>
+                <div className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider">Total Portfolio Equity</div>
                 <div className="text-lg sm:text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400 mt-0.5">
                   ${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                {isPaid ? (
-                  <div className={`text-[10px] font-medium tabular-nums mt-0.5 ${netPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })} ({netReturnPct.toFixed(2)}%)
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => onOpenBillingModal && onOpenBillingModal('reset_10k')}
-                    className="text-[10px] font-bold text-amber-500 hover:underline mt-0.5 flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>P&amp;L Locked (Pro Feature)</span>
-                  </button>
-                )}
+                <div className={`text-[10px] font-medium tabular-nums mt-0.5 ${netPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })} ({netReturnPct.toFixed(2)}%)
+                </div>
               </div>
 
             </div>
