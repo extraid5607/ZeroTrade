@@ -29,6 +29,13 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class GoogleAuthRequest(BaseModel):
+    id_token: Optional[str] = None
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    photo_url: Optional[str] = None
+
+
 _user_cache: dict = {}
 _USER_CACHE_TTL = 15  # seconds cache
 
@@ -48,7 +55,7 @@ def format_user_and_check_expiry(user_row: dict, conn=None) -> dict:
     plan_name = user_row.get("plan_name") or "Free Basic"
     plan_expires_at = user_row.get("plan_expires_at")
     max_leverage = int(user_row.get("max_leverage") or 2)
-    is_admin = bool(user_row.get("is_admin", 0) == 1 or user_row.get("email") == "demo@zeroboss.trade")
+    is_admin = bool(user_row.get("is_admin", 0) == 1 or user_row.get("email") in ["demo@zeroboss.trade", "zerobossai@gmail.com"])
 
     # Check expiration if user has a paid plan
     if plan_expires_at and plan_id != "free" and not is_admin:
@@ -285,6 +292,72 @@ def login(req: LoginRequest):
             raise HTTPException(status_code=401, detail="Invalid email or password.")
 
         formatted_user = format_user_and_check_expiry(dict(user), conn=conn)
+        token = create_access_token(formatted_user["id"], formatted_user["email"], formatted_user["displayName"])
+        return {
+            "token": token,
+            "user": formatted_user
+        }
+
+
+@router.post("/google")
+def google_login(req: GoogleAuthRequest):
+    email = None
+    name = req.display_name
+
+    if req.id_token:
+        try:
+            import firebase_admin.auth
+            decoded = firebase_admin.auth.verify_id_token(req.id_token)
+            email = decoded.get("email", "").lower().strip()
+            if not name:
+                name = decoded.get("name") or decoded.get("display_name")
+        except Exception as e:
+            logger.warning(f"Firebase token verification error: {e}")
+
+    if not email and req.email:
+        email = req.email.lower().strip()
+
+    if not email:
+        raise HTTPException(status_code=400, detail="A valid Google email is required.")
+
+    if not name:
+        name = email.split("@")[0].capitalize()
+
+    is_admin = bool(email in ["zerobossai@gmail.com", "demo@zeroboss.trade"])
+    plan_id = "elite" if is_admin else "free"
+    plan_name = "Master Admin" if is_admin else "Free Basic"
+    max_leverage = 20 if is_admin else 2
+    starting_cash = 100000.0 if is_admin else 2000.0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason FROM users WHERE email = ?", (email,))
+        user = cursor.fetchone()
+
+        if not user:
+            # Create new user
+            dummy_pw_hash = hash_password(f"google_{email}_{time.time()}")
+            cursor.execute("""
+                INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, max_leverage)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (email, dummy_pw_hash, name, starting_cash, 1 if is_admin else 0, plan_id, plan_name, max_leverage))
+            cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason FROM users WHERE email = ?", (email,))
+            user = cursor.fetchone()
+        else:
+            if is_admin and user["is_admin"] != 1:
+                cursor.execute("UPDATE users SET is_admin = 1, plan_id = 'elite', plan_name = 'Master Admin', max_leverage = 20 WHERE id = ?", (user["id"],))
+                cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason FROM users WHERE id = ?", (user["id"],))
+                user = cursor.fetchone()
+
+        formatted_user = format_user_and_check_expiry(dict(user), conn=conn)
+
+        # Sync to Firebase
+        try:
+            from backend.services.firebase_sync import sync_user
+            sync_user(formatted_user)
+        except Exception:
+            pass
+
         token = create_access_token(formatted_user["id"], formatted_user["email"], formatted_user["displayName"])
         return {
             "token": token,

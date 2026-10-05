@@ -612,6 +612,21 @@ def init_db():
         else:
             cursor.execute("UPDATE users SET is_admin = 1 WHERE email = ?", ("demo@zeroboss.trade",))
 
+        # Seed or guarantee zerobossai@gmail.com is Master Admin
+        cursor.execute("SELECT id FROM users WHERE email = ?", ("zerobossai@gmail.com",))
+        admin_user = cursor.fetchone()
+        if not admin_user:
+            admin_pw_hash = hash_password("zerobossadmin2026")
+            cursor.execute("""
+            INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, max_leverage)
+            VALUES (?, ?, ?, ?, 1, 'elite', 'Master Admin', 20.0)
+            """, ("zerobossai@gmail.com", admin_pw_hash, "ZeroBoss Master Admin", 100000.00))
+        else:
+            cursor.execute("""
+            UPDATE users SET is_admin = 1, plan_id = 'elite', plan_name = 'Master Admin', max_leverage = 20.0
+            WHERE email = ?
+            """, ("zerobossai@gmail.com",))
+
         # Seed initial leaderboard profiles to make ranking vibrant
         mock_traders = [
             ("apex_scalper@zeroboss.trade", "ApexScalper", 142850.00),

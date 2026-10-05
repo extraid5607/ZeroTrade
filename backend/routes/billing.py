@@ -128,7 +128,7 @@ def require_admin(
     if authorization and authorization.startswith("Bearer "):
         try:
             user = get_current_user(authorization)
-            if user.get("is_admin") == 1 or user.get("email") == "demo@zeroboss.trade":
+            if user.get("is_admin") == 1 or user.get("email") in ["demo@zeroboss.trade", "zerobossai@gmail.com"]:
                 return user
         except Exception:
             pass
