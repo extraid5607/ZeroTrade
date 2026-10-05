@@ -15,7 +15,9 @@ import {
   ShieldCheck,
   TrendingUp,
   TrendingDown,
-  Lock
+  Lock,
+  Sun,
+  Moon
 } from 'lucide-react';
 import Logo from './Logo';
 import NumberTicker from './magicui/NumberTicker';
@@ -244,6 +246,22 @@ export default function Navbar({
                   <span className="hidden sm:inline">
                     <AnimatedShinyText className="text-white">Upgrade</AnimatedShinyText>
                   </span>
+                </button>
+              )}
+
+              {/* Theme Toggle (Dark / Light) */}
+              {toggleTheme && (
+                <button
+                  onClick={toggleTheme}
+                  className="p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-surface-darkHover border border-transparent hover:border-gray-200 dark:hover:border-surface-darkBorder transition-all active:scale-90 flex items-center justify-center cursor-pointer"
+                  title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  aria-label="Toggle Theme"
+                >
+                  {theme === 'dark' ? (
+                    <Sun className="w-4 h-4 text-amber-400 hover:rotate-45 transition-transform" />
+                  ) : (
+                    <Moon className="w-4 h-4 text-indigo-600 hover:-rotate-12 transition-transform" />
+                  )}
                 </button>
               )}
 
