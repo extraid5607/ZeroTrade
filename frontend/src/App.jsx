@@ -830,7 +830,7 @@ export default function App() {
           showToast({
             type: 'success',
             title: 'Welcome Trader!',
-            message: `Signed in as ${u.displayName || u.email}. Virtual cash: $${u.virtualCash.toLocaleString('en-US')}`
+            message: `Signed in as ${u.displayName || u.email}. Trading cash: $${u.virtualCash.toLocaleString('en-US')}`
           });
         }}
       />

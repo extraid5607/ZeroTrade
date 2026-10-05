@@ -232,7 +232,7 @@ export default function AccountView({
                 </div>
                 <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5 flex items-center gap-1">
                   <CheckCircle2 className="w-2.5 h-2.5 shrink-0" />
-                  <span>100% Liquid Virtual Cash</span>
+                  <span>100% Liquid Cash Balance</span>
                 </div>
               </div>
 

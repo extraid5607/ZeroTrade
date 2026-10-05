@@ -35,7 +35,7 @@ export default function LeaderboardModal({ isOpen, onClose }) {
                 ZeroVega Leaderboard
               </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Top simulated traders ranked by virtual ROI & performance
+                Top traders ranked by ROI &amp; performance
               </p>
             </div>
           </div>

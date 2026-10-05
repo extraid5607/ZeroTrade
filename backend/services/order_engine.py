@@ -168,7 +168,7 @@ class OrderEngine:
                         margin_required = nominal_value  # 100% cash margin
                         if cash < margin_required:
                             raise ValueError(
-                                f"Insufficient virtual cash for Option Buy (Full Margin Required). "
+                                f"Insufficient cash balance for Option Buy (Full Margin Required). "
                                 f"Required: ${margin_required:,.2f}, Available: ${cash:,.2f}"
                             )
                     else:
@@ -177,7 +177,7 @@ class OrderEngine:
                         margin_required = nominal_value / effective_leverage
                         if cash < margin_required:
                             raise ValueError(
-                                f"Insufficient virtual cash for {effective_leverage:g}x leverage. "
+                                f"Insufficient cash balance for {effective_leverage:g}x leverage. "
                                 f"Required Margin: ${margin_required:,.2f}, Available: ${cash:,.2f}"
                             )
 
@@ -314,7 +314,7 @@ class OrderEngine:
 
                         if cash + net_cash_delta < 0:
                             raise ValueError(
-                                f"Insufficient virtual cash to flip to long. "
+                                f"Insufficient cash balance to flip to long. "
                                 f"Required Long Margin: ${new_long_margin:,.2f}, Cover Refund: ${cover_cash_refund:,.2f}, Available: ${cash:,.2f}"
                             )
 
@@ -437,7 +437,7 @@ class OrderEngine:
 
                         if cash + net_cash_delta < 0:
                             raise ValueError(
-                                f"Insufficient virtual cash to flip to short. "
+                                f"Insufficient cash balance to flip to short. "
                                 f"Required Short Margin: ${new_short_margin:,.2f}, Exit Refund: ${exit_cash_refund:,.2f}, Available: ${cash:,.2f}"
                             )
 
@@ -487,7 +487,7 @@ class OrderEngine:
                         margin_required = fill_price * quantity * 10.0
                         if cash < margin_required:
                             raise ValueError(
-                                f"Insufficient virtual cash for Option Writing (10x Option Premium Margin Required). "
+                                f"Insufficient cash balance for Option Writing (10x Option Premium Margin Required). "
                                 f"Premium: ${fill_price:,.2f} x {quantity} Qty -> Required Margin: ${margin_required:,.2f}, Available: ${cash:,.2f}"
                             )
                     else:
@@ -496,7 +496,7 @@ class OrderEngine:
                         margin_required = nominal_value / effective_leverage
                         if cash < margin_required:
                             raise ValueError(
-                                f"Insufficient virtual cash for {effective_leverage:g}x short margin. "
+                                f"Insufficient cash balance for {effective_leverage:g}x short margin. "
                                 f"Required Margin: ${margin_required:,.2f}, Available: ${cash:,.2f}"
                             )
 

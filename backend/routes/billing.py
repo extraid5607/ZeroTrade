@@ -28,7 +28,7 @@ MONETIZATION_PLANS = [
         "popular": True,
         "description": "Restore or start account with $10,000.00 capital valid for 30 days.",
         "features": [
-            "$10,000.00 Virtual Capital Balance",
+            "$10,000.00 Capital Balance",
             "30 Days Trading Access Validity",
             "Full 1x–20x Futures & Margin leverage",
             "Verified UPI Bank Confirmation"
@@ -44,7 +44,7 @@ MONETIZATION_PLANS = [
         "popular": False,
         "description": "$20,000.00 expanded capital for swing trading valid for 60 days.",
         "features": [
-            "$20,000.00 Pro Virtual Capital",
+            "$20,000.00 Pro Capital Balance",
             "60 Days Trading Access Validity",
             "Full 1x–20x Multiplier leverage",
             "Detailed 1-Year P&L Statement Export"
@@ -60,7 +60,7 @@ MONETIZATION_PLANS = [
         "popular": False,
         "description": "$25,000.00 institutional capital valid for 180 days (6 months).",
         "features": [
-            "$25,000.00 Institutional Virtual Capital",
+            "$25,000.00 Institutional Capital",
             "180 Days (6 Months) Extended Validity",
             "Priority Verification & VIP Badge",
             "Full 1x–20x Futures & Margin leverage"

@@ -23,7 +23,7 @@ export default function ResetModal({ isOpen, onClose, onConfirmReset }) {
         <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-surface-darkBorder">
           <div className="flex items-center gap-2 text-rose-500 font-bold text-base">
             <AlertTriangle className="w-5 h-5" />
-            <span>Reset Virtual Portfolio</span>
+            <span>Reset Portfolio</span>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">
             <X className="w-5 h-5" />
@@ -37,7 +37,7 @@ export default function ResetModal({ isOpen, onClose, onConfirmReset }) {
           <ul className="list-disc list-inside space-y-1 text-gray-500 dark:text-gray-400">
             <li>All active stock, crypto, and forex positions will be closed.</li>
             <li>All pending limit orders will be cancelled.</li>
-            <li>Your virtual cash balance will reset to <strong>$100,000.00</strong>.</li>
+            <li>Your cash balance will reset to starting capital.</li>
           </ul>
         </div>
 
@@ -55,7 +55,7 @@ export default function ResetModal({ isOpen, onClose, onConfirmReset }) {
             className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/20 transition-all"
           >
             <RotateCcw className={`w-3.5 h-3.5 ${resetting ? 'animate-spin' : ''}`} />
-            <span>{resetting ? 'Resetting...' : 'Yes, Reset to $100,000'}</span>
+            <span>{resetting ? 'Resetting...' : 'Yes, Reset Account'}</span>
           </button>
         </div>
 

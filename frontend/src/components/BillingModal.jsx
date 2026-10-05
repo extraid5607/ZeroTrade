@@ -39,8 +39,8 @@ const PLANS = [
     color: 'from-blue-600 to-indigo-600',
     description: 'Restore or start account with $10,000.00 capital valid for 30 days.',
     features: [
-      'Instant $10,000.00 virtual capital',
-      '30 Days trading access validity',
+      '$10,000.00 Capital Balance',
+      '30 Days Trading Access Validity',
       'Full 1x–20x Futures & Margin',
       'Verified UPI Bank Confirmation'
     ]
@@ -57,10 +57,10 @@ const PLANS = [
     color: 'from-purple-600 to-indigo-600',
     description: '$20,000.00 expanded capital for swing trading valid for 60 days.',
     features: [
-      '$20,000.00 Pro Virtual Capital',
-      '60 Days trading access validity',
+      '$20,000.00 Pro Capital Balance',
+      '60 Days Trading Access Validity',
       'Full 1x–20x Multiplier leverage',
-      '1-Year P&L Statement Access'
+      'Detailed 1-Year P&L Statement Export'
     ]
   },
   {
@@ -76,9 +76,9 @@ const PLANS = [
     description: '$25,000.00 institutional capital valid for 180 days (6 months).',
     features: [
       '$25,000.00 Institutional Capital',
-      '180 Days (6 Months) Validity',
-      'VIP Priority Verification',
-      'Full 1x–20x Futures & Margin'
+      '180 Days (6 Months) Extended Validity',
+      'Priority Verification & VIP Badge',
+      'Full 1x–20x Futures & Margin leverage'
     ]
   }
 ];

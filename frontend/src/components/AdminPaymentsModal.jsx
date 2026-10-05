@@ -918,7 +918,7 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
                         <th className="p-3">User &amp; Profile</th>
                         <th className="p-3">Active Plan</th>
                         <th className="p-3">Validity / Days Left</th>
-                        <th className="p-3">Virtual Cash</th>
+                        <th className="p-3">Cash Balance</th>
                         <th className="p-3">Max Lev</th>
                         <th className="p-3">Trades / P&amp;L</th>
                         <th className="p-3">Status</th>
@@ -1154,7 +1154,7 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
                           type="number"
                           value={grantCash}
                           onChange={(e) => setGrantCash(e.target.value)}
-                          placeholder="Virtual Capital ($)"
+                          placeholder="Capital ($)"
                           className="w-1/2 px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white"
                         />
                       </div>
@@ -1815,7 +1815,7 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-gray-400 block mb-1">Virtual Capital Granted ($)</label>
+                    <label className="text-[11px] text-gray-400 block mb-1">Capital Granted ($)</label>
                     <input
                       type="number"
                       required

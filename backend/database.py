@@ -513,15 +513,22 @@ def init_db():
             row = cursor.fetchone()
             if not row or row["cnt"] == 0:
                 initial_plans = [
-                    ("reset_10k", "Starter Trader ($10k)", 199.0, 10000.0, 30, 20, "30 DAYS", "Restore or start account with $10,000.00 capital valid for 30 days.", "$10,000.00 Virtual Capital Balance\n30 Days Trading Access Validity\nFull 1x–20x Futures & Margin leverage\nVerified UPI Bank Confirmation", 1, 1),
-                    ("tier_20k", "Pro Trader ($20k)", 399.0, 20000.0, 60, 20, "60 DAYS", "$20,000.00 expanded capital for swing trading valid for 60 days.", "$20,000.00 Pro Virtual Capital\n60 Days Trading Access Validity\nFull 1x–20x Multiplier leverage\nDetailed 1-Year P&L Statement Export", 1, 2),
-                    ("tier_25k", "Elite Master ($25k)", 999.0, 25000.0, 180, 20, "180 DAYS • BEST VALUE", "$25,000.00 institutional capital valid for 180 days (6 months).", "$25,000.00 Institutional Virtual Capital\n180 Days (6 Months) Extended Validity\nPriority Verification & VIP Badge\nFull 1x–20x Futures & Margin leverage", 1, 3),
+                    ("reset_10k", "Starter Trader ($10k)", 199.0, 10000.0, 30, 20, "30 DAYS", "Restore or start account with $10,000.00 capital valid for 30 days.", "$10,000.00 Capital Balance\n30 Days Trading Access Validity\nFull 1x–20x Futures & Margin leverage\nVerified UPI Bank Confirmation", 1, 1),
+                    ("tier_20k", "Pro Trader ($20k)", 399.0, 20000.0, 60, 20, "60 DAYS", "$20,000.00 expanded capital for swing trading valid for 60 days.", "$20,000.00 Pro Capital Balance\n60 Days Trading Access Validity\nFull 1x–20x Multiplier leverage\nDetailed 1-Year P&L Statement Export", 1, 2),
+                    ("tier_25k", "Elite Master ($25k)", 999.0, 25000.0, 180, 20, "180 DAYS • BEST VALUE", "$25,000.00 institutional capital valid for 180 days (6 months).", "$25,000.00 Institutional Capital\n180 Days (6 Months) Extended Validity\nPriority Verification & VIP Badge\nFull 1x–20x Futures & Margin leverage", 1, 3),
                 ]
                 for pid, pname, price, cash, days, lev, badge, desc, feats, act, ordr in initial_plans:
                     cursor.execute("""
                         INSERT INTO monetization_plans (id, name, price_inr, virtual_cash, duration_days, max_leverage, badge, description, features, is_active, display_order)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (pid, pname, price, cash, days, lev, badge, desc, feats, act, ordr))
+            else:
+                # Clean up any legacy "Virtual" keywords in existing DB records
+                cursor.execute("""
+                    UPDATE monetization_plans 
+                    SET features = REPLACE(REPLACE(features, ' Virtual', ''), 'Virtual ', '')
+                    WHERE features LIKE '%Virtual%'
+                """)
         except Exception:
             pass
 
