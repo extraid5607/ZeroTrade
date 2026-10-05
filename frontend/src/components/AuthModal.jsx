@@ -1,20 +1,15 @@
 import React, { useState } from 'react';
-import { LogIn, UserPlus, X, Sparkles, AlertCircle, RefreshCw, Mail, Lock, ShieldCheck } from 'lucide-react';
+import { X, AlertCircle, RefreshCw, ShieldCheck, Sparkles, UserCheck } from 'lucide-react';
 import { auth, googleProvider } from '../firebase';
 import { signInWithPopup } from 'firebase/auth';
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [showEmailForm, setShowEmailForm] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   if (!isOpen) return null;
 
-  // 1. Google 1-Click Authentication
+  // 1-Click Google Authentication (Only method enabled)
   const handleGoogleSignIn = async () => {
     setError(null);
     setLoading(true);
@@ -44,9 +39,8 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       onClose();
     } catch (err) {
       console.error("Google Auth Error:", err);
-      // Friendly message for cancelled popups
       if (err.code === 'auth/popup-closed-by-user') {
-        setError("Sign-in cancelled. Please click 'Continue with Google' to try again.");
+        setError("Sign-in popup was closed. Please click 'Continue with Google' to try again.");
       } else {
         setError(err.message || "Failed to sign in with Google.");
       }
@@ -55,76 +49,45 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     }
   };
 
-  // 2. Standard Email/Password Submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login';
-    const payload = isSignUp
-      ? { email, password, display_name: displayName }
-      : { email, password };
-
-    try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.detail || 'Authentication failed');
-      }
-
-      localStorage.setItem('zerotrade_token', data.token);
-      onAuthSuccess(data.user);
-      onClose();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/65 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-white dark:bg-surface-darkPanel rounded-2xl border border-gray-200 dark:border-surface-darkBorder w-full max-w-sm overflow-hidden shadow-2xl p-6 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
+      <div className="bg-white dark:bg-surface-darkPanel rounded-3xl border border-gray-200 dark:border-surface-darkBorder w-full max-w-sm overflow-hidden shadow-2xl p-6 sm:p-7 relative text-center">
         
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-surface-darkBorder">
-          <div>
-            <div className="font-bold text-base text-gray-900 dark:text-white flex items-center gap-1.5">
-              <span>Sign In to ZeroVega</span>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900">
-                1-CLICK
-              </span>
-            </div>
-            <p className="text-xs text-gray-400 mt-0.5">Instant live access &bull; $2,000 Starting Cash</p>
-          </div>
-          <button 
-            onClick={onClose} 
-            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-surface-darkHover transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+        {/* Close Button */}
+        <button 
+          onClick={onClose} 
+          className="absolute top-4 right-4 p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-surface-darkHover transition-colors cursor-pointer"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        {/* Brand Icon Header */}
+        <div className="mx-auto w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 mb-4">
+          <Sparkles className="w-7 h-7 animate-pulse" />
         </div>
 
+        <h3 className="font-bold text-lg sm:text-xl text-gray-900 dark:text-white">
+          Welcome to ZeroVega
+        </h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs mx-auto">
+          Sign in instantly with your Google account to access paper trading with <strong>$2,000 Starting Cash</strong>.
+        </p>
+
+        {/* Error Alert */}
         {error && (
-          <div className="mt-3.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex items-start gap-2">
+          <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-500 text-xs flex items-start gap-2 text-left">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <span className="leading-snug">{error}</span>
           </div>
         )}
 
-        {/* PRIMARY: 1-Click Google Authentication Button */}
-        <div className="mt-5 flex flex-col gap-3">
+        {/* 1-Click Google Button */}
+        <div className="mt-6 flex flex-col gap-3">
           <button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={loading}
-            className="w-full py-3 px-4 rounded-xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkCard hover:bg-gray-50 dark:hover:bg-surface-darkHover text-gray-800 dark:text-white text-sm font-semibold shadow-sm hover:shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-3 cursor-pointer group"
+            className="w-full py-3.5 px-4 rounded-2xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkCard hover:bg-gray-50 dark:hover:bg-surface-darkHover text-gray-800 dark:text-white text-sm font-bold shadow-md hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 cursor-pointer group"
           >
             {loading ? (
               <RefreshCw className="w-5 h-5 animate-spin text-blue-600" />
@@ -149,102 +112,21 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               </svg>
             )}
             <span className="group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-              {loading ? 'Signing in with Google...' : 'Continue with Google'}
+              {loading ? 'Connecting to Google...' : 'Continue with Google'}
             </span>
           </button>
-
-          <div className="flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-            <span>Secure Firebase Google Authentication</span>
-          </div>
         </div>
 
-        {/* Collapsible Email/Password Form (Optional Fallback) */}
-        <div className="mt-4 pt-3 border-t border-gray-100 dark:border-surface-darkBorder">
-          {!showEmailForm ? (
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => setShowEmailForm(true)}
-                className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
-              >
-                Or sign in with email / password &rarr;
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-2.5 animate-in fade-in duration-200">
-              {isSignUp && (
-                <div>
-                  <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                    Your Name / Trader ID
-                  </label>
-                  <input
-                    type="text"
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g. John Doe or TraderX"
-                    className="w-full px-3 py-1.5 text-xs rounded-lg bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Email Address
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="w-full px-3 py-1.5 text-xs rounded-lg bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-1.5 text-xs rounded-lg bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2 rounded-lg text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer"
-              >
-                {loading ? 'Authenticating...' : (isSignUp ? 'Create Email Account' : 'Sign In with Email')}
-              </button>
-
-              <div className="text-center text-[11px] text-gray-400 pt-1">
-                {isSignUp ? (
-                  <button
-                    type="button"
-                    onClick={() => { setIsSignUp(false); setError(null); }}
-                    className="text-blue-500 hover:underline"
-                  >
-                    Already have account? Sign in
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => { setIsSignUp(true); setError(null); }}
-                    className="text-blue-500 hover:underline"
-                  >
-                    Need email account? Sign up
-                  </button>
-                )}
-              </div>
-            </form>
-          )}
+        {/* Security / Feature Highlights */}
+        <div className="mt-5 pt-4 border-t border-gray-100 dark:border-surface-darkBorder/60 flex flex-col gap-2 text-[11px] text-gray-400 text-left">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span>Official Google Firebase Authentication</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-blue-500 shrink-0" />
+            <span>Automatic cloud sync across devices &amp; deployments</span>
+          </div>
         </div>
 
       </div>

@@ -55,7 +55,7 @@ def format_user_and_check_expiry(user_row: dict, conn=None) -> dict:
     plan_name = user_row.get("plan_name") or "Free Basic"
     plan_expires_at = user_row.get("plan_expires_at")
     max_leverage = int(user_row.get("max_leverage") or 2)
-    is_admin = bool(user_row.get("is_admin", 0) == 1 or user_row.get("email") in ["demo@zeroboss.trade", "zerobossai@gmail.com"])
+    is_admin = bool(user_row.get("is_admin", 0) == 1 or user_row.get("email") == "zerobossai@gmail.com")
 
     # Check expiration if user has a paid plan
     if plan_expires_at and plan_id != "free" and not is_admin:
@@ -197,106 +197,12 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
 @router.post("/signup")
 def signup(req: SignupRequest):
-    email = req.email.strip().lower()
-    if not email or "@" not in email:
-        raise HTTPException(status_code=400, detail="A valid email address is required.")
-    if len(req.password) < 6:
-        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
-
-    name = req.display_name.strip() if req.display_name else email.split("@")[0].capitalize()
-
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
-        if cursor.fetchone():
-            raise HTTPException(status_code=400, detail="An account with this email already exists.")
-
-        pw_hash = hash_password(req.password)
-        cursor.execute("""
-            INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage)
-            VALUES (?, ?, ?, ?, 0, 'free', 'Free Basic', NULL, 2)
-        """, (email, pw_hash, name, INITIAL_VIRTUAL_CASH))
-        user_id = cursor.lastrowid
-
-        token = create_access_token(user_id, email, name)
-
-        try:
-            from backend.services.firebase_sync import sync_user
-            sync_user({
-                "id": user_id,
-                "email": email,
-                "password_hash": pw_hash,
-                "display_name": name,
-                "virtual_cash": INITIAL_VIRTUAL_CASH,
-                "is_admin": 0,
-                "plan_id": "free",
-                "plan_name": "Free Basic",
-                "plan_expires_at": None,
-                "max_leverage": 2
-            })
-        except Exception:
-            pass
-
-        return {
-            "token": token,
-            "user": {
-                "id": user_id,
-                "email": email,
-                "displayName": name,
-                "virtualCash": INITIAL_VIRTUAL_CASH,
-                "isAdmin": False,
-                "planId": "free",
-                "planName": "Free Basic",
-                "planExpiresAt": None,
-                "isPaidPlan": False,
-                "maxLeverage": 2
-            }
-        }
+    raise HTTPException(status_code=400, detail="Standard email registration is disabled. Please use 1-Click Continue with Google.")
 
 
 @router.post("/login")
 def login(req: LoginRequest):
-    email = req.email.strip().lower()
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage FROM users WHERE email = ?", (email,))
-        user = cursor.fetchone()
-        if not user:
-            # Check Firebase Firestore
-            try:
-                from backend.services.firebase_sync import get_firestore_client
-                f_db = get_firestore_client()
-                if f_db:
-                    docs = list(f_db.collection("users").where("email", "==", email).limit(1).stream())
-                    if docs:
-                        data = docs[0].to_dict()
-                        cursor.execute("""
-                            INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(email) DO UPDATE SET
-                                virtual_cash = excluded.virtual_cash,
-                                display_name = excluded.display_name,
-                                is_admin = excluded.is_admin
-                        """, (
-                            data["id"], data["email"], data.get("password_hash", ""),
-                            data["display_name"], data["virtual_cash"], data.get("is_admin", 0),
-                            data.get("plan_id", "free"), data.get("plan_name", "Free Basic"),
-                            data.get("plan_expires_at"), data.get("max_leverage", 2)
-                        ))
-                        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage FROM users WHERE email = ?", (email,))
-                        user = cursor.fetchone()
-            except Exception:
-                pass
-
-        if not user or not verify_password(req.password, user["password_hash"]):
-            raise HTTPException(status_code=401, detail="Invalid email or password.")
-
-        formatted_user = format_user_and_check_expiry(dict(user), conn=conn)
-        token = create_access_token(formatted_user["id"], formatted_user["email"], formatted_user["displayName"])
-        return {
-            "token": token,
-            "user": formatted_user
-        }
+    raise HTTPException(status_code=400, detail="Standard email login is disabled. Please use 1-Click Continue with Google.")
 
 
 @router.post("/google")
@@ -323,7 +229,7 @@ def google_login(req: GoogleAuthRequest):
     if not name:
         name = email.split("@")[0].capitalize()
 
-    is_admin = bool(email in ["zerobossai@gmail.com", "demo@zeroboss.trade"])
+    is_admin = bool(email == "zerobossai@gmail.com")
     plan_id = "elite" if is_admin else "free"
     plan_name = "Master Admin" if is_admin else "Free Basic"
     max_leverage = 20 if is_admin else 2

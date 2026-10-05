@@ -600,17 +600,15 @@ def init_db():
         except Exception:
             pass
 
-        # Seed initial demo trader user if none exists (marked as admin)
-        cursor.execute("SELECT id FROM users WHERE email = ?", ("demo@zeroboss.trade",))
-        demo_user = cursor.fetchone()
-        if not demo_user:
-            default_pw_hash = hash_password("zerotrade123")
+        # Clean up all old mock/demo accounts (Only new Google Authentication accounts allowed)
+        try:
             cursor.execute("""
-            INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin)
-            VALUES (?, ?, ?, ?, 1)
-            """, ("demo@zeroboss.trade", default_pw_hash, "ZeroBoss Trader", INITIAL_VIRTUAL_CASH))
-        else:
-            cursor.execute("UPDATE users SET is_admin = 1 WHERE email = ?", ("demo@zeroboss.trade",))
+                DELETE FROM users 
+                WHERE email != 'zerobossai@gmail.com' 
+                  AND (email LIKE '%@zeroboss.trade' OR email LIKE '%@example.com' OR email = 'demo@zeroboss.trade')
+            """)
+        except Exception:
+            pass
 
         # Seed or guarantee zerobossai@gmail.com is Master Admin
         cursor.execute("SELECT id FROM users WHERE email = ?", ("zerobossai@gmail.com",))
@@ -626,22 +624,6 @@ def init_db():
             UPDATE users SET is_admin = 1, plan_id = 'elite', plan_name = 'Master Admin', max_leverage = 20.0
             WHERE email = ?
             """, ("zerobossai@gmail.com",))
-
-        # Seed initial leaderboard profiles to make ranking vibrant
-        mock_traders = [
-            ("apex_scalper@zeroboss.trade", "ApexScalper", 142850.00),
-            ("crypto_whale@zeroboss.trade", "CryptoWhale99", 128400.00),
-            ("quant_fund@zeroboss.trade", "QuantNova", 115200.00),
-            ("fx_swing@zeroboss.trade", "FX_Maverick", 109800.00),
-            ("steady_bull@zeroboss.trade", "SteadyBull", 98400.00),
-        ]
-        for email, name, cash in mock_traders:
-            cursor.execute("SELECT id FROM users WHERE email = ?", (email,))
-            if not cursor.fetchone():
-                cursor.execute("""
-                INSERT INTO users (email, password_hash, display_name, virtual_cash)
-                VALUES (?, ?, ?, ?)
-                """, (email, hash_password("traderdemo"), name, cash))
 
 
 if __name__ == "__main__":
