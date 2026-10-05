@@ -29,36 +29,56 @@ const MERCHANT_NAME = "ZeroVega";
 const PLANS = [
   {
     id: 'reset_10k',
-    name: 'Account Reset / Starter ($10k)',
+    name: 'Starter Trader ($10k)',
     priceInr: 199,
     virtualCash: 10000,
-    badge: 'POPULAR',
+    durationDays: 30,
+    badge: '30 DAYS',
     popular: true,
     icon: RotateCcw,
     color: 'from-blue-600 to-indigo-600',
-    description: 'Restore your blown account back to $10,000.00 capital upon UPI verification.',
+    description: 'Restore or start account with $10,000.00 capital valid for 30 days.',
     features: [
-      'Instant $10,000.00 virtual capital reset',
-      'Wipe all liquidated / negative positions',
-      'Full 1x–20x Futures & Margin leverage',
+      'Instant $10,000.00 virtual capital',
+      '30 Days trading access validity',
+      'Full 1x–20x Futures & Margin',
       'Verified UPI Bank Confirmation'
     ]
   },
   {
-    id: 'tier_25k',
-    name: 'Pro Trader Challenge ($25k)',
+    id: 'tier_20k',
+    name: 'Pro Trader ($20k)',
     priceInr: 399,
-    virtualCash: 25000,
-    badge: 'PRO TIER',
+    virtualCash: 20000,
+    durationDays: 60,
+    badge: '60 DAYS',
     popular: false,
     icon: Zap,
     color: 'from-purple-600 to-indigo-600',
-    description: 'Upgrade your account to $25,000.00 capital for swing & multi-position trading.',
+    description: '$20,000.00 expanded capital for swing trading valid for 60 days.',
     features: [
-      '$25,000.00 High-Capacity Virtual Balance',
-      'Full 1x–20x Multiplier on Futures & Equities',
-      'Multi-Asset Swing Trading Power',
+      '$20,000.00 Pro Virtual Capital',
+      '60 Days trading access validity',
+      'Full 1x–20x Multiplier leverage',
       '1-Year P&L Statement Access'
+    ]
+  },
+  {
+    id: 'tier_25k',
+    name: 'Elite Master ($25k)',
+    priceInr: 999,
+    virtualCash: 25000,
+    durationDays: 180,
+    badge: '180 DAYS • BEST VALUE',
+    popular: false,
+    icon: TrendingUp,
+    color: 'from-amber-500 to-orange-600',
+    description: '$25,000.00 institutional capital valid for 180 days (6 months).',
+    features: [
+      '$25,000.00 Institutional Capital',
+      '180 Days (6 Months) Validity',
+      'VIP Priority Verification',
+      'Full 1x–20x Futures & Margin'
     ]
   }
 ];
@@ -203,7 +223,7 @@ export default function BillingModal({
       <div className="absolute inset-0" onClick={onClose} />
 
       {/* Modal Container */}
-      <div className="relative w-full sm:max-w-2xl bg-white dark:bg-surface-darkPanel rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[92vh] flex flex-col">
+      <div className="relative w-full sm:max-w-3xl bg-white dark:bg-surface-darkPanel rounded-t-2xl sm:rounded-2xl shadow-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden z-10 max-h-[92vh] flex flex-col">
         
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-gray-100 dark:border-surface-darkBorder bg-gray-50/80 dark:bg-surface-darkCard/50 flex items-center justify-between">
@@ -252,14 +272,14 @@ export default function BillingModal({
         </div>
 
         {/* Modal Body */}
-        <div className="p-4 sm:p-6 overflow-y-auto flex flex-col gap-4">
+        <div className="p-4 sm:p-5 overflow-y-auto flex flex-col gap-4">
           
           {/* ========================================================================= */}
           {/* STEP 1: SELECT PLAN                                                      */}
           {/* ========================================================================= */}
           {step === 'select' && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {PLANS.map((plan) => {
                   const Icon = plan.icon;
                   const isSelected = selectedPlanId === plan.id;
@@ -267,7 +287,7 @@ export default function BillingModal({
                     <div
                       key={plan.id}
                       onClick={() => setSelectedPlanId(plan.id)}
-                      className={`relative p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-3 select-none ${
+                      className={`relative p-3.5 sm:p-4 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-2.5 select-none ${
                         isSelected
                           ? 'border-blue-600 bg-blue-50/40 dark:bg-blue-950/20 shadow-md ring-1 ring-blue-500'
                           : 'border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkCard/40 hover:border-gray-300 dark:hover:border-surface-darkHover'
@@ -284,7 +304,7 @@ export default function BillingModal({
                         </span>
 
                         <div className="flex items-baseline gap-1 text-right">
-                          <span className="text-xl font-bold text-gray-900 dark:text-white">
+                          <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
                             ₹{plan.priceInr}
                           </span>
                           <span className="text-[10px] text-gray-400">INR</span>
@@ -297,13 +317,19 @@ export default function BillingModal({
                           <div className={`p-1.5 rounded-lg bg-gradient-to-br ${plan.color} text-white`}>
                             <Icon className="w-4 h-4" />
                           </div>
-                          <h3 className="font-bold text-sm text-gray-900 dark:text-white">
+                          <h3 className="font-bold text-xs sm:text-sm text-gray-900 dark:text-white">
                             {plan.name}
                           </h3>
                         </div>
 
-                        <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mt-1">
-                          +${plan.virtualCash.toLocaleString('en-US')} Capital
+                        <div className="flex items-center justify-between gap-2 mt-1.5">
+                          <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                            +${plan.virtualCash.toLocaleString('en-US')} Capital
+                          </span>
+                          <span className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded-md border border-blue-200/60 dark:border-blue-900/50 flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            <span>{plan.durationDays}d</span>
+                          </span>
                         </div>
 
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-snug">
@@ -323,7 +349,7 @@ export default function BillingModal({
 
                       {/* Selection Radio Circle */}
                       <div className="flex items-center justify-between pt-1">
-                        <span className="text-[10px] text-gray-400">One-time payment</span>
+                        <span className="text-[10px] text-gray-400">Valid for {plan.durationDays} Days</span>
                         <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
                           isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 dark:border-gray-600'
                         }`}>
@@ -339,9 +365,9 @@ export default function BillingModal({
               <div className="pt-2">
                 <button
                   onClick={handleProceedToPay}
-                  className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm uppercase tracking-wider shadow-lg shadow-blue-500/25 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <span>Proceed to Pay ₹{selectedPlan.priceInr} via UPI</span>
+                  <span>Proceed to Pay ₹{selectedPlan.priceInr} for {selectedPlan.durationDays} Days</span>
                   <ArrowRight className="w-4 h-4 stroke-[2.5]" />
                 </button>
 
@@ -364,7 +390,7 @@ export default function BillingModal({
               <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 flex items-center justify-between">
                 <div>
                   <div className="text-[10px] text-blue-600 dark:text-blue-400 uppercase font-bold tracking-wider">
-                    Selected Package
+                    Selected Package ({selectedPlan.durationDays} Days Validity)
                   </div>
                   <div className="text-sm font-bold text-gray-900 dark:text-white">
                     {selectedPlan.name} (+${selectedPlan.virtualCash.toLocaleString('en-US')})

@@ -20,32 +20,50 @@ router = APIRouter(prefix="/api/billing", tags=["billing"])
 MONETIZATION_PLANS = [
     {
         "id": "reset_10k",
-        "name": "Account Reset / Starter ($10k)",
+        "name": "Starter Trader ($10k)",
         "priceInr": 199,
         "virtualCash": 10000.0,
-        "badge": "POPULAR",
+        "durationDays": 30,
+        "badge": "30 DAYS",
         "popular": True,
-        "description": "Restore your blown account back to $10,000.00 capital instantly upon verification.",
+        "description": "Restore or start account with $10,000.00 capital valid for 30 days.",
         "features": [
-            "$10,000.00 Virtual Capital Balance Reset",
-            "Clear all liquidated & negative positions",
+            "$10,000.00 Virtual Capital Balance",
+            "30 Days Trading Access Validity",
             "Full 1x–20x Futures & Margin leverage",
             "Verified UPI Bank Confirmation"
         ]
     },
     {
-        "id": "tier_25k",
-        "name": "Pro Trader Challenge ($25k)",
+        "id": "tier_20k",
+        "name": "Pro Trader ($20k)",
         "priceInr": 399,
-        "virtualCash": 25000.0,
-        "badge": "PRO TIER",
+        "virtualCash": 20000.0,
+        "durationDays": 60,
+        "badge": "60 DAYS",
         "popular": False,
-        "description": "Upgrade your simulated capital to $25,000.00 for pro-scale swing trading.",
+        "description": "$20,000.00 expanded capital for swing trading valid for 60 days.",
         "features": [
-            "$25,000.00 High-Capacity Virtual Capital",
-            "Up to 20x Leverage on Futures & Equities",
-            "Multi-Asset Swing Trading Power",
+            "$20,000.00 Pro Virtual Capital",
+            "60 Days Trading Access Validity",
+            "Full 1x–20x Multiplier leverage",
             "Detailed 1-Year P&L Statement Export"
+        ]
+    },
+    {
+        "id": "tier_25k",
+        "name": "Elite Master ($25k)",
+        "priceInr": 999,
+        "virtualCash": 25000.0,
+        "durationDays": 180,
+        "badge": "180 DAYS • BEST VALUE",
+        "popular": False,
+        "description": "$25,000.00 institutional capital valid for 180 days (6 months).",
+        "features": [
+            "$25,000.00 Institutional Virtual Capital",
+            "180 Days (6 Months) Extended Validity",
+            "Priority Verification & VIP Badge",
+            "Full 1x–20x Futures & Margin leverage"
         ]
     }
 ]

@@ -445,7 +445,7 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
                       <span className="text-[10px] text-gray-400 uppercase font-medium block">Package</span>
                       <span className="font-bold text-gray-900 dark:text-white">{order.plan_name}</span>
                       <span className="text-[11px] text-emerald-600 dark:text-emerald-400 block font-semibold">
-                        +${(order.virtual_cash_granted || (order.plan_id === 'tier_100k' ? 100000 : order.plan_id === 'tier_25k' ? 25000 : 10000)).toLocaleString('en-US')} Capital
+                        +${(order.virtual_cash_granted || (order.plan_id === 'tier_100k' ? 100000 : order.plan_id === 'tier_25k' ? 25000 : order.plan_id === 'tier_20k' ? 20000 : 10000)).toLocaleString('en-US')} Capital
                       </span>
                     </div>
 
