@@ -40,6 +40,8 @@ export default function AccountView({
   const netReturnPct = Number(portfolio?.netReturnPercent ?? 0);
   const isDepleted = cash <= 0 || totalEquity <= 0;
 
+  const isPaid = Boolean(user?.isAdmin || user?.isPaidPlan || (user?.planId && user?.planId !== 'basic' && user?.planId !== 'free'));
+
   // Unified Modal for About & Privacy/Terms
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
   const [legalTab, setLegalTab] = useState('about'); // 'about' | 'privacy'
@@ -70,8 +72,13 @@ export default function AccountView({
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            <FileText className="w-3.5 h-3.5" />
+            {isPaid ? <FileText className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5 text-amber-500" />}
             <span>P&amp;L Report (1 Year)</span>
+            {!isPaid && (
+              <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30">
+                PRO
+              </span>
+            )}
           </button>
         </div>
 
@@ -88,7 +95,7 @@ export default function AccountView({
 
       {/* Render 1-Year P&L Report Tab inside Account */}
       {accountSubTab === 'pnl_report' ? (
-        <PnlReport onBack={() => setAccountSubTab('overview')} />
+        <PnlReport onBack={() => setAccountSubTab('overview')} user={user} onOpenBillingModal={onOpenBillingModal} />
       ) : (
         <div className="max-w-3xl mx-auto w-full flex flex-col gap-4">
 
@@ -209,13 +216,25 @@ export default function AccountView({
               </div>
 
               <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder">
-                <div className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider">Total Portfolio Equity</div>
+                <div className="text-[10px] text-gray-400 uppercase font-semibold tracking-wider flex items-center justify-between">
+                  <span>Total Portfolio Equity</span>
+                  {!isPaid && <Lock className="w-2.5 h-2.5 text-amber-500" />}
+                </div>
                 <div className="text-lg sm:text-xl font-bold tabular-nums text-blue-600 dark:text-blue-400 mt-0.5">
                   ${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <div className={`text-[10px] font-medium tabular-nums mt-0.5 ${netPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                  {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })} ({netReturnPct.toFixed(2)}%)
-                </div>
+                {isPaid ? (
+                  <div className={`text-[10px] font-medium tabular-nums mt-0.5 ${netPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {netPnl >= 0 ? '+' : ''}${netPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })} ({netReturnPct.toFixed(2)}%)
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => onOpenBillingModal && onOpenBillingModal('reset_10k')}
+                    className="text-[10px] font-bold text-amber-500 hover:underline mt-0.5 flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>P&amp;L Locked (Pro Feature)</span>
+                  </button>
+                )}
               </div>
 
             </div>
@@ -321,25 +340,6 @@ export default function AccountView({
                 </div>
               </div>
             )}
-
-            {/* Dark / Light Mode Toggle */}
-            <div 
-              onClick={toggleTheme}
-              className="p-3.5 sm:p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-surface-darkHover cursor-pointer transition-colors"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-surface-darkCard flex items-center justify-center text-gray-700 dark:text-gray-300">
-                  {theme === 'dark' ? <Moon className="w-5 h-5 text-indigo-400" /> : <Sun className="w-5 h-5 text-amber-500" />}
-                </div>
-                <div>
-                  <div className="text-sm font-medium text-gray-900 dark:text-white">Appearance Theme</div>
-                  <div className="text-xs text-gray-400 font-normal">Current: {theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</div>
-                </div>
-              </div>
-              <button className="px-3 py-1 rounded-lg text-xs font-medium bg-gray-100 dark:bg-surface-darkCard text-gray-700 dark:text-gray-300">
-                Toggle
-              </button>
-            </div>
 
             {/* Common Unified Section: About ZeroVega, Privacy Policy & Terms */}
             <div 

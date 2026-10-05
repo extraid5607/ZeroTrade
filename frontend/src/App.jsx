@@ -602,6 +602,7 @@ export default function App() {
             <div className="w-full max-w-5xl mx-auto">
               <PortfolioView
                 portfolio={portfolio}
+                user={user}
                 tickers={tickers}
                 onClosePosition={handleClosePosition}
                 onOpenBillingModal={openBillingModal}
@@ -687,6 +688,7 @@ export default function App() {
         {activeTab === 'portfolio' && (
           <PortfolioView
             portfolio={portfolio}
+            user={user}
             tickers={tickers}
             onClosePosition={handleClosePosition}
             onOpenBillingModal={openBillingModal}

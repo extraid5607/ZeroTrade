@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
   RotateCcw, 
-  Sun, 
-  Moon, 
   Trophy, 
   Briefcase, 
   BarChart2, 
@@ -16,7 +14,8 @@ import {
   Sparkles,
   ShieldCheck,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Lock
 } from 'lucide-react';
 import Logo from './Logo';
 import NumberTicker from './magicui/NumberTicker';
@@ -41,6 +40,7 @@ export default function Navbar({
   const cash = portfolio?.cash ?? 10000;
   const netPnl = portfolio?.netPnl ?? 0;
   const isPnlPositive = netPnl >= 0;
+  const isPaid = Boolean(user?.isAdmin || user?.isPaidPlan || (user?.planId && user?.planId !== 'basic' && user?.planId !== 'free'));
 
   // Pin Top Index Tickers
   const spx = tickers.find(t => t.symbol === '^GSPC' || t.symbol === 'SPY');
@@ -117,10 +117,21 @@ export default function Navbar({
 
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400">
               <span>Day P&amp;L:</span>
-              <div className={`font-bold px-1.5 py-0.2 rounded-md flex items-center ${isPnlPositive ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'}`}>
-                <span>{isPnlPositive ? '+' : ''}</span>
-                <NumberTicker value={netPnl} decimalPlaces={2} prefix="$" className={isPnlPositive ? 'text-emerald-500' : 'text-rose-500'} />
-              </div>
+              {isPaid ? (
+                <div className={`font-bold px-1.5 py-0.2 rounded-md flex items-center ${isPnlPositive ? 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' : 'text-rose-500 bg-rose-50 dark:bg-rose-950/40'}`}>
+                  <span>{isPnlPositive ? '+' : ''}</span>
+                  <NumberTicker value={netPnl} decimalPlaces={2} prefix="$" className={isPnlPositive ? 'text-emerald-500' : 'text-rose-500'} />
+                </div>
+              ) : (
+                <button
+                  onClick={() => onOpenBillingModal && onOpenBillingModal('reset_10k')}
+                  className="font-bold px-2 py-0.5 rounded-md flex items-center gap-1 text-[10px] text-amber-500 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 transition-all cursor-pointer"
+                  title="Real-Time P&L is locked. Upgrade to Pro Plan to unlock."
+                >
+                  <Lock className="w-2.5 h-2.5" />
+                  <span>PRO P&amp;L</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -214,11 +225,25 @@ export default function Navbar({
             <div className="flex items-center gap-1.5 sm:gap-2.5">
               
               {/* Mobile P&L Chip */}
-              <div className="md:hidden flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-50 dark:bg-surface-darkCard border border-gray-200/80 dark:border-surface-darkBorder/80 text-[11px] tabular-nums font-semibold">
+              <div 
+                onClick={() => !isPaid && onOpenBillingModal && onOpenBillingModal('reset_10k')}
+                className={`md:hidden flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] tabular-nums font-semibold ${
+                  isPaid 
+                    ? 'bg-gray-50 dark:bg-surface-darkCard border-gray-200/80 dark:border-surface-darkBorder/80' 
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-500 cursor-pointer active:scale-95'
+                }`}
+                title={isPaid ? "Day P&L" : "Real-Time P&L is locked. Tap to upgrade."}
+              >
                 <span className="text-gray-400 text-[10px]">P&amp;L:</span>
-                <span className={isPnlPositive ? 'text-emerald-500' : 'text-rose-500'}>
-                  {isPnlPositive ? '+' : ''}${netPnl.toFixed(1)}
-                </span>
+                {isPaid ? (
+                  <span className={isPnlPositive ? 'text-emerald-500' : 'text-rose-500'}>
+                    {isPnlPositive ? '+' : ''}${netPnl.toFixed(1)}
+                  </span>
+                ) : (
+                  <span className="text-amber-500 font-bold flex items-center gap-0.5 text-[10px]">
+                    <Lock className="w-2.5 h-2.5" /> PRO
+                  </span>
+                )}
               </div>
 
               {/* Admin Desk Button (For Merchant Admins) */}
@@ -246,15 +271,6 @@ export default function Navbar({
                   </span>
                 </button>
               )}
-
-              {/* Theme Toggle */}
-              <button
-                onClick={toggleTheme}
-                className="p-1.5 sm:p-2 rounded-xl text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-surface-darkHover transition-colors active:scale-90"
-                title="Toggle Theme"
-              >
-                {theme === 'dark' ? <Moon className="w-4 h-4 text-indigo-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
-              </button>
 
               {/* Account Button (Desktop & Mobile) */}
               <button

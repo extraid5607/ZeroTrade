@@ -21,22 +21,28 @@ import {
   FileText,
   Clock,
   Check,
-  ShieldCheck
+  ShieldCheck,
+  Lock,
+  Sparkles
 } from 'lucide-react';
 import { NumberTicker } from './magicui/NumberTicker';
 import { BorderBeam } from './magicui/BorderBeam';
 
 export default function PortfolioView({
   portfolio,
+  user = null,
   tickers = [],
   onClosePosition,
   onOpenBillingModal,
   onSelectSymbol,
+  onOpenOptionChain,
   onOpenOrderModal
 }) {
   const [subTab, setSubTab] = useState('positions'); // 'positions' | 'holdings'
   const [posFilter, setPosFilter] = useState('all'); // 'all' | 'open' | 'closed'
   const [selectedPos, setSelectedPos] = useState(null); // Selected position for interactive pop-up
+
+  const isPaid = Boolean(user?.isAdmin || user?.isPaidPlan || (user?.planId && user?.planId !== 'basic' && user?.planId !== 'free'));
 
   const openPositions = portfolio?.positions || [];
   const closedPositions = portfolio?.closedPositionsToday || [];
@@ -163,40 +169,109 @@ export default function PortfolioView({
 
           {/* Realized P&L Today */}
           <div>
-            <div className="text-[11px] text-gray-400 uppercase font-medium tracking-wider">
-              Realized P&amp;L (Today)
+            <div className="text-[11px] text-gray-400 uppercase font-medium tracking-wider flex items-center gap-1">
+              <span>Realized P&amp;L (Today)</span>
+              {!isPaid && <Lock className="w-2.5 h-2.5 text-amber-500" />}
             </div>
-            <div className={`text-base sm:text-xl font-semibold tabular-nums mt-0.5 ${realizedPnlToday >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-              <NumberTicker 
-                value={Math.abs(realizedPnlToday)} 
-                prefix={realizedPnlToday >= 0 ? '+$' : '-$'} 
-                decimalPlaces={2} 
-              />
-            </div>
-            <div className="text-[10px] text-gray-400 mt-0.5">
-              All-time: <span className={`font-medium ${totalRealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{totalRealizedPnl >= 0 ? '+' : ''}${totalRealizedPnl.toFixed(2)}</span>
-            </div>
+            {isPaid ? (
+              <>
+                <div className={`text-base sm:text-xl font-semibold tabular-nums mt-0.5 ${realizedPnlToday >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  <NumberTicker 
+                    value={Math.abs(realizedPnlToday)} 
+                    prefix={realizedPnlToday >= 0 ? '+$' : '-$'} 
+                    decimalPlaces={2} 
+                  />
+                </div>
+                <div className="text-[10px] text-gray-400 mt-0.5">
+                  All-time: <span className={`font-medium ${totalRealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{totalRealizedPnl >= 0 ? '+' : ''}${totalRealizedPnl.toFixed(2)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="mt-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base sm:text-xl font-mono text-gray-400 tracking-wider">••••••</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">PRO</span>
+                </div>
+                {onOpenBillingModal && (
+                  <button 
+                    onClick={() => onOpenBillingModal('reset_10k')}
+                    className="text-[10px] text-blue-500 hover:underline mt-0.5 flex items-center gap-0.5 cursor-pointer"
+                  >
+                    Unlock Real-time P&amp;L
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Day Total P&L */}
           <div className="text-left sm:text-right">
-            <div className="text-[11px] text-gray-400 uppercase font-medium tracking-wider">
-              Total P&amp;L (Today)
+            <div className="text-[11px] text-gray-400 uppercase font-medium tracking-wider flex items-center gap-1 justify-start sm:justify-end">
+              {!isPaid && <Lock className="w-2.5 h-2.5 text-amber-500" />}
+              <span>Total P&amp;L (Today)</span>
             </div>
-            <div className={`text-lg sm:text-2xl font-semibold tabular-nums mt-0.5 ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-              <NumberTicker 
-                value={Math.abs(dayPnl)} 
-                prefix={isPositive ? '+$' : '-$'} 
-                decimalPlaces={2} 
-              />
-            </div>
-            <div className="text-[11px] text-gray-400 mt-0.5">
-              Unrealized: <strong className={`font-medium tabular-nums ${unrealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}</strong>
-            </div>
+            {isPaid ? (
+              <>
+                <div className={`text-lg sm:text-2xl font-semibold tabular-nums mt-0.5 ${isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                  <NumberTicker 
+                    value={Math.abs(dayPnl)} 
+                    prefix={isPositive ? '+$' : '-$'} 
+                    decimalPlaces={2} 
+                  />
+                </div>
+                <div className="text-[11px] text-gray-400 mt-0.5">
+                  Unrealized: <strong className={`font-medium tabular-nums ${unrealizedPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{unrealizedPnl >= 0 ? '+' : ''}${unrealizedPnl.toFixed(2)}</strong>
+                </div>
+              </>
+            ) : (
+              <div className="mt-0.5 flex flex-col items-start sm:items-end">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg sm:text-2xl font-mono text-gray-400 tracking-wider">••••••</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-500 border border-amber-500/30">PRO</span>
+                </div>
+                {onOpenBillingModal && (
+                  <button 
+                    onClick={() => onOpenBillingModal('reset_10k')}
+                    className="text-[10px] text-blue-500 hover:underline mt-0.5 cursor-pointer"
+                  >
+                    Upgrade to View Live P&amp;L
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
         </div>
       </div>
+
+      {/* Free Account Pro P&L Notice Banner */}
+      {!isPaid && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-gradient-to-r from-amber-500/10 via-indigo-500/10 to-blue-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs sm:text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                <span>Live P&amp;L Tracking is Locked for Free Accounts</span>
+                <span className="text-[9px] uppercase font-bold px-1.5 py-0.2 rounded bg-amber-500 text-white">PRO ONLY</span>
+              </div>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                Upgrade to Starter ($10,000 for ₹199) or Pro ($20,000 for ₹399) to unlock real-time profit/loss tracking, 20x leverage, and 1-year trade statements.
+              </p>
+            </div>
+          </div>
+          {onOpenBillingModal && (
+            <button
+              onClick={() => onOpenBillingModal('reset_10k')}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold whitespace-nowrap shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Unlock P&amp;L (₹199)</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* 3. Position Filter Bar (All / Open / Closed Today) */}
       {subTab === 'positions' && (
@@ -350,17 +425,39 @@ export default function PortfolioView({
                 {/* Right: P&L & Manage Button */}
                 <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100 dark:border-surface-darkBorder">
                   
-                  <div className="text-left sm:text-right">
-                    <div className="text-[10px] font-medium text-gray-400 uppercase">
-                      {isClosed ? 'Realized P&L' : 'Unrealized P&L'}
+                  {isPaid ? (
+                    <div className="text-left sm:text-right">
+                      <div className="text-[10px] font-medium text-gray-400 uppercase">
+                        {isClosed ? 'Realized P&L' : 'Unrealized P&L'}
+                      </div>
+                      <div className={`text-base font-semibold tabular-nums ${pnlPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {pnlPositive ? '+' : ''}${pPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                      <div className={`text-xs font-medium tabular-nums ${pnlPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {pnlPositive ? '+' : ''}{pPnlPct.toFixed(2)}% on Margin
+                      </div>
                     </div>
-                    <div className={`text-base font-semibold tabular-nums ${pnlPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {pnlPositive ? '+' : ''}${pPnl.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  ) : (
+                    <div 
+                      className="text-left sm:text-right cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onOpenBillingModal && onOpenBillingModal('reset_10k');
+                      }}
+                    >
+                      <div className="text-[10px] font-medium text-gray-400 uppercase flex items-center gap-1 justify-start sm:justify-end">
+                        <Lock className="w-2.5 h-2.5 text-amber-500" />
+                        <span>{isClosed ? 'Realized P&L' : 'Unrealized P&L'}</span>
+                      </div>
+                      <div className="text-sm font-bold text-amber-500 flex items-center gap-1 justify-start sm:justify-end mt-0.5">
+                        <span className="font-mono">••••••</span>
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-amber-500/15 border border-amber-500/30">PRO</span>
+                      </div>
+                      <div className="text-[10px] text-blue-500 hover:underline">
+                        Unlock P&amp;L
+                      </div>
                     </div>
-                    <div className={`text-xs font-medium tabular-nums ${pnlPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {pnlPositive ? '+' : ''}{pPnlPct.toFixed(2)}% on Margin
-                    </div>
-                  </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-1.5">
@@ -472,11 +569,24 @@ export default function PortfolioView({
                     <div className="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">
                       ${curPrice.toFixed(precision)}
                     </div>
-                    <div className={`text-xs font-semibold tabular-nums flex items-center justify-end gap-0.5 ${
-                      ((isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                    }`}>
-                      {((isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? '+' : ''}${((isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
+                    {isPaid ? (
+                      <div className={`text-xs font-semibold tabular-nums flex items-center justify-end gap-0.5 ${
+                        ((isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                      }`}>
+                        {((isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? '+' : ''}${((isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                    ) : (
+                      <div 
+                        onClick={() => {
+                          setSelectedPos(null);
+                          onOpenBillingModal && onOpenBillingModal('reset_10k');
+                        }}
+                        className="text-[10px] font-bold text-amber-500 flex items-center justify-end gap-1 cursor-pointer hover:underline"
+                      >
+                        <Lock className="w-2.5 h-2.5" />
+                        <span>PRO P&amp;L</span>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => setSelectedPos(null)}
@@ -625,16 +735,28 @@ export default function PortfolioView({
                     <div className="text-[10px] text-gray-400 font-medium uppercase">
                       {isPosClosed ? 'Realized P&L' : 'Unrealized P&L'}
                     </div>
-                    <div className={`text-sm font-semibold tabular-nums mt-0.5 ${(Number(isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {(Number(isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? '+' : ''}${(Number(isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                    </div>
+                    {isPaid ? (
+                      <div className={`text-sm font-semibold tabular-nums mt-0.5 ${(Number(isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(Number(isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0) >= 0 ? '+' : ''}${(Number(isPosClosed ? selectedPos.realizedPnl : selectedPos.unrealizedPnl) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </div>
+                    ) : (
+                      <div className="text-xs font-bold text-amber-500 mt-1 flex items-center gap-1">
+                        <Lock className="w-3 h-3" /> Locked (Pro Plan)
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder">
                     <div className="text-[10px] text-gray-400 font-medium uppercase">Return on Margin %</div>
-                    <div className={`text-sm font-semibold tabular-nums mt-0.5 ${(Number(isPosClosed ? selectedPos.realizedPnlPercent : selectedPos.unrealizedPnlPercent) || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {(Number(isPosClosed ? selectedPos.realizedPnlPercent : selectedPos.unrealizedPnlPercent) || 0) >= 0 ? '+' : ''}{(Number(isPosClosed ? selectedPos.realizedPnlPercent : selectedPos.unrealizedPnlPercent) || 0).toFixed(2)}%
-                    </div>
+                    {isPaid ? (
+                      <div className={`text-sm font-semibold tabular-nums mt-0.5 ${(Number(isPosClosed ? selectedPos.realizedPnlPercent : selectedPos.unrealizedPnlPercent) || 0) >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                        {(Number(isPosClosed ? selectedPos.realizedPnlPercent : selectedPos.unrealizedPnlPercent) || 0) >= 0 ? '+' : ''}{(Number(isPosClosed ? selectedPos.realizedPnlPercent : selectedPos.unrealizedPnlPercent) || 0).toFixed(2)}%
+                      </div>
+                    ) : (
+                      <div className="text-xs font-bold text-amber-500 mt-1 flex items-center gap-1">
+                        <Lock className="w-3 h-3" /> Locked (Pro Plan)
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder">
