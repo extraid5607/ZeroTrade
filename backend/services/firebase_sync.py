@@ -83,10 +83,16 @@ def sync_user(user_data: Dict[str, Any]):
             doc = {
                 "id": user_data["id"],
                 "email": user_data["email"],
-                "password_hash": user_data["password_hash"],
-                "display_name": user_data["display_name"],
-                "virtual_cash": float(user_data["virtual_cash"]),
+                "password_hash": user_data.get("password_hash", ""),
+                "display_name": user_data.get("display_name", ""),
+                "virtual_cash": float(user_data.get("virtual_cash", 2000.0)),
                 "is_admin": int(user_data.get("is_admin", 0)),
+                "plan_id": user_data.get("plan_id") or user_data.get("planId") or "free",
+                "plan_name": user_data.get("plan_name") or user_data.get("planName") or "Free Basic",
+                "plan_expires_at": user_data.get("plan_expires_at") or user_data.get("planExpiresAt"),
+                "max_leverage": float(user_data.get("max_leverage") or user_data.get("maxLeverage") or 2.0),
+                "is_banned": int(user_data.get("is_banned") or user_data.get("isBanned") or 0),
+                "ban_reason": user_data.get("ban_reason") or user_data.get("banReason") or "",
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }
             db.collection("users").document(uid).set(doc, merge=True)
@@ -222,15 +228,24 @@ def restore_from_firebase():
             for u in user_docs:
                 data = u.to_dict()
                 cursor.execute("""
-                    INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(email) DO UPDATE SET
                         virtual_cash = excluded.virtual_cash,
                         display_name = excluded.display_name,
-                        is_admin = excluded.is_admin
+                        is_admin = excluded.is_admin,
+                        plan_id = excluded.plan_id,
+                        plan_name = excluded.plan_name,
+                        plan_expires_at = excluded.plan_expires_at,
+                        max_leverage = excluded.max_leverage,
+                        is_banned = excluded.is_banned,
+                        ban_reason = excluded.ban_reason
                 """, (
-                    data["id"], data["email"], data["password_hash"],
-                    data["display_name"], data["virtual_cash"], data.get("is_admin", 0)
+                    data["id"], data["email"], data.get("password_hash", ""),
+                    data["display_name"], data["virtual_cash"], data.get("is_admin", 0),
+                    data.get("plan_id", "free"), data.get("plan_name", "Free Basic"),
+                    data.get("plan_expires_at"), data.get("max_leverage", 2.0),
+                    data.get("is_banned", 0), data.get("ban_reason", "")
                 ))
 
             # 2. Restore Positions
