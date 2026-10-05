@@ -1019,8 +1019,9 @@ class OrderEngine:
 
             # Exact Total Equity = Cash + Margin Invested + Unrealized P&L
             total_equity = cash + total_margin_invested + total_unrealized_pnl
-            net_pnl = total_equity - INITIAL_VIRTUAL_CASH
-            net_return_pct = (net_pnl / INITIAL_VIRTUAL_CASH) * 100
+            net_pnl = total_realized + total_unrealized_pnl
+            starting_basis = total_equity - net_pnl
+            net_return_pct = (net_pnl / starting_basis * 100) if starting_basis > 0 else 0.0
             day_pnl = total_unrealized_pnl + realized_pnl_today
 
             return {

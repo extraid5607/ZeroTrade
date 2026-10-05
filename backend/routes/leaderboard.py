@@ -23,16 +23,32 @@ def get_leaderboard():
             uid = u["id"]
             cash = u["virtual_cash"]
 
-            # Calculate open positions value
-            cursor.execute("SELECT symbol, quantity FROM positions WHERE user_id = ?", (uid,))
+            # Calculate realized P&L
+            cursor.execute("SELECT COALESCE(SUM(realized_pnl), 0.0) as total_realized FROM transactions WHERE user_id = ?", (uid,))
+            total_realized = cursor.fetchone()["total_realized"]
+
+            # Calculate open positions value & unrealized PnL
+            cursor.execute("SELECT symbol, quantity, avg_entry_price, leverage FROM positions WHERE user_id = ?", (uid,))
             positions = cursor.fetchall()
             mkt_val = 0.0
+            unrealized_pnl = 0.0
+            margin_inv = 0.0
             for p in positions:
-                cur_price = data_hub.tickers.get(p["symbol"], {}).get("price", 0.0)
-                mkt_val += p["quantity"] * cur_price
+                cur_price = data_hub.tickers.get(p["symbol"], {}).get("price", p["avg_entry_price"])
+                qty = p["quantity"]
+                abs_qty = abs(qty)
+                mkt_val += abs_qty * cur_price
+                lev = p["leverage"] or 1.0
+                margin_inv += (abs_qty * p["avg_entry_price"]) / lev
+                if qty < 0:
+                    unrealized_pnl += (p["avg_entry_price"] - cur_price) * abs_qty
+                else:
+                    unrealized_pnl += (cur_price - p["avg_entry_price"]) * abs_qty
 
-            total_equity = cash + mkt_val
-            net_return_pct = ((total_equity - INITIAL_VIRTUAL_CASH) / INITIAL_VIRTUAL_CASH) * 100
+            total_equity = cash + margin_inv + unrealized_pnl
+            net_pnl = total_realized + unrealized_pnl
+            starting_basis = total_equity - net_pnl
+            net_return_pct = (net_pnl / starting_basis * 100) if starting_basis > 0 else 0.0
 
             # Compute win rate & completed closed trades
             cursor.execute("""
