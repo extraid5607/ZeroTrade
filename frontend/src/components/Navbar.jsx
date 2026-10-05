@@ -180,18 +180,6 @@ export default function Navbar({
               </button>
 
               <button
-                onClick={() => setActiveTab('options')}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
-                  activeTab === 'options'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                <Layers className="w-4 h-4" />
-                <span>Option Chain</span>
-              </button>
-
-              <button
                 onClick={() => setActiveTab('orders')}
                 className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
                   activeTab === 'orders'
@@ -314,7 +302,22 @@ export default function Navbar({
             <span className="text-[10px] mt-0.5 tracking-tight">Watchlist</span>
           </button>
 
-          {/* 2. Orders */}
+          {/* 2. Charts */}
+          <button
+            onClick={() => setActiveTab('chart')}
+            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-90 ${
+              activeTab === 'chart'
+                ? 'text-blue-600 dark:text-blue-400 font-bold'
+                : 'text-gray-500 dark:text-gray-400 font-normal hover:text-gray-800 dark:hover:text-gray-200'
+            }`}
+          >
+            <div className={`p-1 rounded-xl transition-all ${activeTab === 'chart' ? 'bg-blue-50 dark:bg-blue-950/60' : ''}`}>
+              <BarChart2 className={`w-5 h-5 ${activeTab === 'chart' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+            </div>
+            <span className="text-[10px] mt-0.5 tracking-tight">Charts</span>
+          </button>
+
+          {/* 3. Orders */}
           <button
             onClick={() => setActiveTab('orders')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-90 ${
@@ -329,7 +332,7 @@ export default function Navbar({
             <span className="text-[10px] mt-0.5 tracking-tight">Orders</span>
           </button>
 
-          {/* 3. Portfolio */}
+          {/* 4. Portfolio */}
           <button
             onClick={() => setActiveTab('portfolio')}
             className={`flex flex-col items-center justify-center py-1 rounded-xl relative transition-all active:scale-90 ${
@@ -347,21 +350,6 @@ export default function Navbar({
               )}
             </div>
             <span className="text-[10px] mt-0.5 tracking-tight">Portfolio</span>
-          </button>
-
-          {/* 4. Option Chain */}
-          <button
-            onClick={() => setActiveTab('options')}
-            className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all active:scale-90 ${
-              activeTab === 'options'
-                ? 'text-blue-600 dark:text-blue-400 font-bold'
-                : 'text-gray-500 dark:text-gray-400 font-normal hover:text-gray-800 dark:hover:text-gray-200'
-            }`}
-          >
-            <div className={`p-1 rounded-xl transition-all ${activeTab === 'options' ? 'bg-blue-50 dark:bg-blue-950/60' : ''}`}>
-              <Layers className={`w-5 h-5 ${activeTab === 'options' ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-            </div>
-            <span className="text-[10px] mt-0.5 tracking-tight">F&amp;O Chain</span>
           </button>
 
           {/* 5. Account */}

@@ -418,6 +418,12 @@ def init_db():
             );
             """)
 
+        # Clean up any historical/expired option positions (Platform is 100% Futures & Spot)
+        try:
+            cursor.execute("DELETE FROM positions WHERE asset_class = 'options' OR symbol LIKE '% CE%' OR symbol LIKE '% PE%'")
+        except Exception:
+            pass
+
         # Seed initial demo trader user if none exists (marked as admin)
         cursor.execute("SELECT id FROM users WHERE email = ?", ("demo@zeroboss.trade",))
         demo_user = cursor.fetchone()

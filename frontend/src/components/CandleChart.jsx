@@ -48,7 +48,6 @@ export default function CandleChart({
   activeTicker, 
   theme = 'dark',
   lastTick = null,
-  onOpenOptionChain = null,
   onOpenOrderModal = null
 }) {
   const chartContainerRef = useRef(null);
@@ -667,18 +666,6 @@ export default function CandleChart({
           >
             VOL
           </button>
-
-          {/* Quick Option Chain Button */}
-          {onOpenOptionChain && (activeTicker?.category === 'stock' || activeTicker?.category === 'index') && (
-            <button
-              onClick={() => onOpenOptionChain(symbol)}
-              title={`View Option Chain for ${symbol}`}
-              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-cyan-50 dark:bg-cyan-950/40 text-cyan-600 dark:text-cyan-400 border border-cyan-500/30 transition-all flex items-center gap-1"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Options</span>
-            </button>
-          )}
 
           <button
             onClick={() => loadCandles(interval)}

@@ -7,8 +7,7 @@ export default function QuoteSheet({
   onClose,
   ticker,
   onOpenOrderModal, // (side) => ...
-  onViewChart,
-  onOpenOptionChain
+  onViewChart
 }) {
   if (!isOpen || !ticker) return null;
 
@@ -17,7 +16,6 @@ export default function QuoteSheet({
   const isForex5 = ['EUR/USD', 'GBP/USD', 'AUD/USD', 'USD/CAD'].includes(ticker.symbol);
   const isForex3 = ['USD/JPY', 'USD/INR'].includes(ticker.symbol);
   const precision = isForex5 ? 5 : (isForex3 ? 3 : (price < 5 ? 4 : 2));
-  const isOptionEligible = ticker.category === 'index' || ticker.category === 'stock';
 
   // Generate realistic 5-depth order book based on live market price
   const generateDepth = () => {
@@ -117,31 +115,18 @@ export default function QuoteSheet({
           </button>
         </div>
 
-        {/* Secondary Quick Navigation (Chart & Option Chain) */}
+        {/* Secondary Quick Navigation (Chart) */}
         <div className="px-4 py-2.5 bg-gray-50 dark:bg-surface-darkCard/50 border-b border-gray-100 dark:border-surface-darkBorder flex items-center gap-2">
           <button
             onClick={() => {
               onClose();
               onViewChart(ticker.symbol);
             }}
-            className="flex-1 py-2 px-3 rounded-xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95"
+            className="w-full py-2 px-3 rounded-xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95"
           >
             <BarChart2 className="w-4 h-4 text-blue-500" />
-            <span>View Full Chart</span>
+            <span>View Full Interactive Chart</span>
           </button>
-
-          {isOptionEligible && (
-            <button
-              onClick={() => {
-                onClose();
-                onOpenOptionChain(ticker.symbol);
-              }}
-              className="flex-1 py-2 px-3 rounded-xl border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel text-xs font-semibold text-gray-700 dark:text-gray-300 hover:text-cyan-600 dark:hover:text-cyan-400 flex items-center justify-center gap-1.5 transition-all shadow-2xs active:scale-95"
-            >
-              <Layers className="w-4 h-4 text-cyan-500" />
-              <span>Option Chain</span>
-            </button>
-          )}
         </div>
 
         {/* Market Depth 5-Depth (Zerodha Kite Classic Feature) */}

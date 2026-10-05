@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 import asyncio
 from backend.database import init_db, get_db
 from backend.services.data_hub import data_hub
-from backend.routes import auth, markets, trading, leaderboard, options, billing
+from backend.routes import auth, markets, trading, leaderboard, billing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("zerotrade.main")
@@ -33,17 +33,6 @@ async def _db_keep_alive_loop():
                 c = conn.cursor()
                 c.execute("SELECT 1")
                 c.fetchone()
-        except Exception:
-            pass
-
-
-async def _option_expiry_loop():
-    """Periodically check and settle expired US options according to market hours."""
-    while True:
-        await asyncio.sleep(60)  # Check every 60 seconds
-        try:
-            from backend.services.option_settlement import settle_expired_options
-            settle_expired_options()
         except Exception:
             pass
 
@@ -72,10 +61,8 @@ async def lifespan(app: FastAPI):
         init_db()
         from backend.services.firebase_sync import restore_from_firebase
         restore_from_firebase()
-        from backend.services.option_settlement import settle_expired_options
-        settle_expired_options()
     except Exception as e:
-        logger.error(f"Database init / Firebase restore / Option settlement exception: {e}")
+        logger.error(f"Database init / Firebase restore exception: {e}")
 
     logger.info("Starting MarketDataHub background price feeds...")
     try:
@@ -84,13 +71,11 @@ async def lifespan(app: FastAPI):
         logger.error(f"MarketDataHub start error: {e}")
 
     keep_alive_task = asyncio.create_task(_db_keep_alive_loop())
-    settle_task = asyncio.create_task(_option_expiry_loop())
     self_ping_task = asyncio.create_task(_self_ping_loop())
 
     yield
     # Shutdown
     keep_alive_task.cancel()
-    settle_task.cancel()
     self_ping_task.cancel()
     logger.info("Shutting down MarketDataHub...")
     await data_hub.stop()
@@ -98,7 +83,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ZeroTrade Paper Trading API",
-    description="Simulated multi-asset trading platform (Stocks, Crypto, Forex, US Options) by ZeroBoss.",
+    description="Simulated multi-asset trading platform (Futures, Stocks, Crypto, Forex) by ZeroBoss.",
     version="1.0.0",
     lifespan=lifespan
 )
@@ -120,7 +105,6 @@ app.include_router(auth.router)
 app.include_router(markets.router)
 app.include_router(trading.router)
 app.include_router(leaderboard.router)
-app.include_router(options.router)
 app.include_router(billing.router)
 
 

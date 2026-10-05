@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, ArrowUpRight, ArrowDownRight, ShieldCheck, Info, Check, Plus, Minus, Zap, AlertTriangle } from 'lucide-react';
-import BorderBeam from './magicui/BorderBeam';
+import { BorderBeam } from './magicui/BorderBeam';
 
 const LEVERAGE_OPTIONS = [1, 2, 5, 10, 20];
 
@@ -14,36 +14,24 @@ export default function OrderModal({
   user = null,
   onOpenAuth = null,
   onOrderPlaced,
-  onShowToast,
-  contractInfo = null // for options: { type: 'CALL'|'PUT', strike, expiry, price }
+  onShowToast
 }) {
   const [side, setSide] = useState(initialSide);
-  const [productType, setProductType] = useState('CNC'); // 'CNC' (Delivery/Normal) | 'MIS' (Intraday)
+  const [productType, setProductType] = useState('CNC'); // 'CNC' (Delivery/Hold) | 'MIS' (Intraday)
   const [orderType, setOrderType] = useState('MARKET'); // 'MARKET' | 'LIMIT'
-  const [leverage, setLeverage] = useState(1); // 1x up to 20x (Futures/Stocks only)
+  const [leverage, setLeverage] = useState(1); // 1x up to 20x Futures Leverage
   const [quantity, setQuantity] = useState('1');
   const [limitPrice, setLimitPrice] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  // Identify if trading an Option Contract vs Futures/Stocks
-  const tradeSymbol = contractInfo ? `${symbol} ${contractInfo.strike} ${contractInfo.type === 'CALL' ? 'CE' : 'PE'}` : symbol;
-  const isOption = Boolean(
-    contractInfo || 
-    activeTicker?.category === 'options' || 
-    tradeSymbol.includes(' CE') || 
-    tradeSymbol.includes(' PE') || 
-    tradeSymbol.includes(' CALL') || 
-    tradeSymbol.includes(' PUT')
-  );
-
   // Existing position
-  const existingPos = portfolio?.positions?.find(p => p.symbol === tradeSymbol || p.symbol === symbol);
+  const existingPos = portfolio?.positions?.find(p => p.symbol === symbol);
   const currentPositionQty = existingPos ? Number(existingPos.quantity) || 0 : 0;
   const isShortPosition = currentPositionQty < 0;
   const isLongPosition = currentPositionQty > 0;
 
-  const livePrice = Number(contractInfo?.price || (activeTicker?.price && activeTicker.symbol === symbol ? activeTicker.price : null) || existingPos?.currentPrice || existingPos?.avgEntryPrice || activeTicker?.price || 100.0);
+  const livePrice = Number(activeTicker?.price || existingPos?.currentPrice || existingPos?.avgEntryPrice || 100.0);
   const cash = Number(portfolio?.cash ?? (user?.virtualCash ?? 10000.0));
 
   useEffect(() => {
@@ -59,12 +47,9 @@ export default function OrderModal({
         setLeverage(existingPos?.leverage || 1);
       } else {
         setQuantity('1');
-        if (isOption) {
-          setLeverage(1);
-        }
       }
     }
-  }, [isOpen, initialSide, currentPositionQty, isLongPosition, isShortPosition, isOption]);
+  }, [isOpen, initialSide, currentPositionQty, isLongPosition, isShortPosition]);
 
   useEffect(() => {
     if (livePrice && (!limitPrice || orderType === 'MARKET')) {
@@ -78,25 +63,7 @@ export default function OrderModal({
   const numLimitPrice = parseFloat(limitPrice) || livePrice;
   const execPrice = orderType === 'MARKET' ? livePrice : numLimitPrice;
   const nominalValue = numQty * execPrice;
-
-  // Margin Calculation Rules:
-  // 1. Options:
-  //    - Option Buying: 100% Full Cash Margin (No leverage)
-  //    - Option Writing (Selling without holding): 10x Option Premium Margin Required ($10 premium = $100 margin)
-  // 2. Futures / Stocks / Crypto / Forex:
-  //    - Up to 20x Leverage: Margin = Nominal / Leverage
-  let requiredMargin = 0;
-  if (isOption) {
-    if (side === 'BUY') {
-      requiredMargin = isShortPosition ? 0 : nominalValue; // 100% full margin for option buy
-    } else {
-      // side === 'SELL'
-      requiredMargin = isLongPosition ? 0 : (nominalValue * 10.0); // 10x Option Premium margin for option write
-    }
-  } else {
-    // Futures / Stocks
-    requiredMargin = nominalValue / leverage;
-  }
+  const requiredMargin = nominalValue / leverage;
 
   const handleStepQty = (delta) => {
     const next = Math.max(1, (parseFloat(quantity) || 0) + delta);
@@ -115,7 +82,7 @@ export default function OrderModal({
       } else {
         if (execPrice <= 0) return;
         const targetMargin = cash * (pct / 100);
-        const maxNominal = isOption ? targetMargin : (targetMargin * leverage);
+        const maxNominal = targetMargin * leverage;
         const computedQty = maxNominal / execPrice;
         const precision = activeTicker?.category === 'crypto' ? 4 : (activeTicker?.category === 'forex' ? 2 : 0);
         const finalQty = precision === 0 ? Math.max(1, Math.floor(computedQty)) : Math.max(0.0001, parseFloat(computedQty.toFixed(precision)));
@@ -129,10 +96,10 @@ export default function OrderModal({
         const finalQty = precision === 0 ? Math.max(1, Math.round(computed)) : Math.max(0.0001, parseFloat(computed.toFixed(precision)));
         setQuantity(finalQty.toString());
       } else {
-        // Short Sell / Option Write
+        // Short Sell
         if (execPrice <= 0) return;
         const targetMargin = cash * (pct / 100);
-        const maxNominal = isOption ? (targetMargin / 10.0) : (targetMargin * leverage);
+        const maxNominal = targetMargin * leverage;
         const computedQty = maxNominal / execPrice;
         const precision = activeTicker?.category === 'crypto' ? 4 : (activeTicker?.category === 'forex' ? 2 : 0);
         const finalQty = precision === 0 ? Math.max(1, Math.floor(computedQty)) : Math.max(0.0001, parseFloat(computedQty.toFixed(precision)));
@@ -183,14 +150,14 @@ export default function OrderModal({
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          symbol: tradeSymbol,
+          symbol: symbol,
           side: side,
           order_type: orderType,
           quantity: numQty,
           limit_price: orderType === 'LIMIT' ? numLimitPrice : null,
           price: execPrice,
-          leverage: isOption ? 1.0 : leverage,
-          asset_class: isOption ? 'options' : (activeTicker?.category || 'stock')
+          leverage: leverage,
+          asset_class: activeTicker?.category || 'stock'
         })
       });
 
@@ -201,10 +168,8 @@ export default function OrderModal({
 
       onShowToast?.({
         type: 'success',
-        title: isOption 
-          ? `${side === 'BUY' ? 'Option Bought' : (isLongPosition ? 'Option Exited' : 'Option Written')}`
-          : `${side} Order Executed (${leverage}x)`,
-        message: `${side} ${numQty} ${tradeSymbol} @ $${data.fillPrice || execPrice} successful!`
+        title: `${side} Order Executed (${leverage}x)`,
+        message: `${side} ${numQty} ${symbol} @ $${data.fillPrice || execPrice} successful!`
       });
 
       onOrderPlaced?.(data);
@@ -243,17 +208,17 @@ export default function OrderModal({
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-black/20">
                 {isBuy 
-                  ? (isShortPosition ? (isOption ? 'BUY TO COVER (Option)' : 'BUY / COVER') : (isOption ? 'BUY OPTION' : 'BUY')) 
-                  : (isLongPosition ? (isOption ? 'EXIT OPTION' : 'SELL / EXIT') : (isOption ? 'WRITE OPTION' : 'SHORT SELL'))
+                  ? (isShortPosition ? 'BUY / COVER SHORT' : 'BUY (LONG)') 
+                  : (isLongPosition ? 'SELL / EXIT LONG' : 'SELL (SHORT)')
                 }
               </span>
               <span className="font-semibold text-base sm:text-lg tracking-tight">
-                {contractInfo ? `${symbol} $${contractInfo.strike} ${contractInfo.type}` : (activeTicker?.display || symbol)}
+                {activeTicker?.display || symbol}
               </span>
             </div>
             <div className="text-xs text-white/80 tabular-nums mt-0.5 flex items-center gap-2 font-medium">
-              <span>{isOption ? 'Premium LTP' : 'LTP'}: ${livePrice.toLocaleString('en-US', { minimumFractionDigits: livePrice < 5 ? 4 : 2 })}</span>
-              {contractInfo?.expiry && <span>&bull; Exp: {contractInfo.expiry}</span>}
+              <span>LTP: ${livePrice.toLocaleString('en-US', { minimumFractionDigits: livePrice < 5 ? 4 : 2 })}</span>
+              <span>&bull; {activeTicker?.category ? activeTicker.category.toUpperCase() : 'FUTURES'}</span>
             </div>
           </div>
 
@@ -276,7 +241,7 @@ export default function OrderModal({
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            {isShortPosition ? (isOption ? 'BUY (Cover Option)' : 'BUY (Cover Short)') : (isOption ? 'BUY (Option)' : 'BUY (Long)')}
+            {isShortPosition ? 'BUY (Cover Short)' : 'BUY (Long)'}
           </button>
           <button
             type="button"
@@ -287,50 +252,46 @@ export default function OrderModal({
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            {isLongPosition 
-              ? (isOption ? 'SELL (Exit Option)' : 'SELL (Exit Long)') 
-              : (isOption ? 'SELL / WRITE' : 'SELL (Short)')}
+            {isLongPosition ? 'SELL (Exit Long)' : 'SELL (Short)'}
           </button>
         </div>
 
         {/* Scrollable Form Body */}
         <form onSubmit={handleSubmit} className="p-4 overflow-y-auto flex flex-col gap-3.5">
           
-          {/* Futures / Stocks: Interactive Leverage Selector (Up to 20x) */}
-          {!isOption && (
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                  <Zap className="w-3.5 h-3.5 text-amber-500" />
-                  <span>Futures Leverage</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
-                    Up to 20x
-                  </span>
-                </label>
-                <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 tabular-nums">
-                  {leverage}x Multiplier
+          {/* Futures Leverage Selector (1x up to 20x) */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Zap className="w-3.5 h-3.5 text-amber-500" />
+                <span>Futures Leverage</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                  Up to 20x
                 </span>
-              </div>
-              <div className="grid grid-cols-5 gap-1.5">
-                {LEVERAGE_OPTIONS.map((lev) => (
-                  <button
-                    key={lev}
-                    type="button"
-                    onClick={() => setLeverage(lev)}
-                    className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                      leverage === lev
-                        ? isBuy
-                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm ring-1 ring-blue-500'
-                          : 'bg-orange-600 border-orange-600 text-white shadow-sm ring-1 ring-orange-500'
-                        : 'border-gray-200 dark:border-surface-darkBorder bg-gray-50 dark:bg-surface-darkCard text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-surface-darkHover'
-                    }`}
-                  >
-                    {lev}x
-                  </button>
-                ))}
-              </div>
+              </label>
+              <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 tabular-nums">
+                {leverage}x Multiplier
+              </span>
             </div>
-          )}
+            <div className="grid grid-cols-5 gap-1.5">
+              {LEVERAGE_OPTIONS.map((lev) => (
+                <button
+                  key={lev}
+                  type="button"
+                  onClick={() => setLeverage(lev)}
+                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                    leverage === lev
+                      ? isBuy
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm ring-1 ring-blue-500'
+                        : 'bg-orange-600 border-orange-600 text-white shadow-sm ring-1 ring-orange-500'
+                      : 'border-gray-200 dark:border-surface-darkBorder bg-gray-50 dark:bg-surface-darkCard text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-surface-darkHover'
+                  }`}
+                >
+                  {lev}x
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Product Type Tabs: Intraday (MIS) vs Longterm (CNC) */}
           <div>
@@ -350,7 +311,7 @@ export default function OrderModal({
                 }`}
               >
                 <div>Longterm (CNC / NRML)</div>
-                <div className="text-[10px] font-normal text-gray-400 dark:text-gray-500 mt-0.5">Hold until Expiry / Close</div>
+                <div className="text-[10px] font-normal text-gray-400 dark:text-gray-500 mt-0.5">Positional Futures / Delivery</div>
               </button>
 
               <button
@@ -493,11 +454,7 @@ export default function OrderModal({
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-[10px] text-gray-500 dark:text-gray-400 uppercase font-medium">
-                  {isOption 
-                    ? (side === 'BUY' 
-                        ? 'Required Margin' 
-                        : (isLongPosition ? 'Estimated Proceeds' : 'Required Margin'))
-                    : `Required Margin (${leverage}x Leverage)`}
+                  {`Required Margin (${leverage}x Leverage)`}
                 </div>
                 <div className="text-sm font-bold tabular-nums text-gray-900 dark:text-white">
                   ${requiredMargin.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -512,7 +469,7 @@ export default function OrderModal({
             </div>
 
             <div className="flex items-center justify-between pt-1.5 border-t border-gray-200/60 dark:border-surface-darkBorder/60 text-[11px] text-gray-500 dark:text-gray-400">
-              <span>{isOption ? 'Option Premium Total Value:' : 'Nominal Position Value:'}</span>
+              <span>Nominal Position Value:</span>
               <span className="font-semibold tabular-nums text-gray-800 dark:text-gray-200">
                 ${nominalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
@@ -532,8 +489,8 @@ export default function OrderModal({
             {submitting 
               ? 'Executing Simulated Trade...' 
               : isBuy
-                ? (isShortPosition ? `BUY TO COVER ${tradeSymbol}` : (isOption ? `BUY OPTION ${tradeSymbol}` : `BUY ${tradeSymbol} (${leverage}x)`))
-                : (isLongPosition ? `SELL / EXIT ${tradeSymbol}` : (isOption ? `WRITE / SELL ${tradeSymbol}` : `SHORT SELL ${tradeSymbol} (${leverage}x)`))
+                ? (isShortPosition ? `BUY TO COVER ${symbol}` : `BUY ${symbol} (LONG ${leverage}x)`)
+                : (isLongPosition ? `SELL / EXIT ${symbol}` : `SHORT SELL ${symbol} (${leverage}x)`)
             }
           </button>
 

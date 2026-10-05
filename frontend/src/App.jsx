@@ -4,7 +4,6 @@ import Watchlist from './components/Watchlist';
 import CandleChart from './components/CandleChart';
 import PortfolioView from './components/PortfolioView';
 import OrdersLog from './components/OrdersLog';
-import OptionChain from './components/OptionChain';
 import QuoteSheet from './components/QuoteSheet';
 import OrderModal from './components/OrderModal';
 import AccountView from './components/AccountView';
@@ -20,7 +19,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState(() => {
     try {
       const hash = window.location.hash.replace('#', '');
-      const validTabs = ['watchlist', 'chart', 'options', 'orders', 'portfolio', 'account'];
+      const validTabs = ['watchlist', 'chart', 'orders', 'portfolio', 'account'];
       if (validTabs.includes(hash)) return hash;
       const paramTab = new URLSearchParams(window.location.search).get('tab');
       if (validTabs.includes(paramTab)) return paramTab;
@@ -520,24 +519,7 @@ export default function App() {
                 activeTicker={activeTicker}
                 theme={theme}
                 lastTick={lastTick}
-                onOpenOptionChain={() => handleTabChange('options')}
                 onOpenOrderModal={(side) => openOrderModal(side, selectedSymbol)}
-              />
-            </div>
-          )}
-
-          {/* TAB: F&O OPTION CHAIN */}
-          {activeTab === 'options' && (
-            <div className="w-full max-w-6xl mx-auto">
-              <OptionChain
-                onSelectOptionToTrade={(opt) => {
-                  openOrderModal(opt.side || 'BUY', opt.underlying, {
-                    type: opt.type,
-                    strike: opt.strike,
-                    expiry: opt.expiry,
-                    price: opt.price
-                  });
-                }}
               />
             </div>
           )}
@@ -571,10 +553,6 @@ export default function App() {
                 onSelectSymbol={(sym) => {
                   setSelectedSymbol(sym);
                   handleTabChange('chart');
-                }}
-                onOpenOptionChain={(sym) => {
-                  setSelectedSymbol(sym);
-                  handleTabChange('options');
                 }}
                 onOpenOrderModal={(side, sym) => openOrderModal(side, sym)}
               />
@@ -630,26 +608,11 @@ export default function App() {
             activeTicker={activeTicker}
             theme={theme}
             lastTick={lastTick}
-            onOpenOptionChain={() => handleTabChange('options')}
             onOpenOrderModal={(side) => openOrderModal(side, selectedSymbol)}
           />
         )}
 
-        {/* TAB 3: OPTION CHAIN (F&O S&P / NASDAQ / STOCKS) */}
-        {activeTab === 'options' && (
-          <OptionChain
-            onSelectOptionToTrade={(opt) => {
-              openOrderModal(opt.side || 'BUY', opt.underlying, {
-                type: opt.type,
-                strike: opt.strike,
-                expiry: opt.expiry,
-                price: opt.price
-              });
-            }}
-          />
-        )}
-
-        {/* TAB 4: ORDERS (OPEN & EXECUTED) */}
+        {/* TAB 3: ORDERS (OPEN & EXECUTED) */}
         {activeTab === 'orders' && (
           <OrdersLog
             onCancelOrder={handleCancelOrder}

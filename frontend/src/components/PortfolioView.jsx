@@ -32,7 +32,6 @@ export default function PortfolioView({
   onClosePosition,
   onOpenBillingModal,
   onSelectSymbol,
-  onOpenOptionChain,
   onOpenOrderModal
 }) {
   const [subTab, setSubTab] = useState('positions'); // 'positions' | 'holdings'
@@ -46,10 +45,7 @@ export default function PortfolioView({
   const holdingsPositions = openPositions.filter(p => 
     (p.assetClass === 'stock' || p.assetClass === 'crypto') && 
     (p.side === 'LONG' || Number(p.quantity) > 0) && 
-    (Number(p.leverage) <= 1 || !p.leverage) && 
-    !p.isOption && 
-    !p.symbol.includes(' CE') && 
-    !p.symbol.includes(' PE')
+    (Number(p.leverage) <= 1 || !p.leverage)
   );
 
   const cash = Number(portfolio?.cash) || 10000;
@@ -260,7 +256,7 @@ export default function PortfolioView({
               <div className="text-xs text-gray-400 mt-0.5 font-normal">
                 {posFilter === 'closed' 
                   ? 'Positions closed today will stay listed here until US market day-end.'
-                  : 'Explore Watchlist or Option Chain to place your first trade.'}
+                  : 'Explore Watchlist to place your first trade.'}
               </div>
             </div>
           </div>
@@ -281,8 +277,6 @@ export default function PortfolioView({
             const isForex = p.assetClass === 'forex';
             const precision = isForex ? 4 : (pCurrentPrice < 5 ? 4 : 2);
             const pLev = Number(p.leverage) || 1;
-            const isOpt = Boolean(p.isOption || p.assetClass === 'options' || p.symbol.includes(' CE') || p.symbol.includes(' PE'));
-            const isOptWrite = Boolean(p.isOptionWriting || (isOpt && (isShort || pLev === 0.1)));
 
             return (
               <div
@@ -421,8 +415,6 @@ export default function PortfolioView({
         const precision = (selectedPos.assetClass === 'forex' || curPrice < 5) ? 4 : 2;
         const posMargin = Number(selectedPos.marginInvested) || ((Math.abs(posQty) * avgPrice) / posLev);
         const nominalVal = Math.abs(posQty) * curPrice;
-        const isOpt = Boolean(selectedPos.isOption || selectedPos.assetClass === 'options' || selectedPos.symbol.includes(' CE') || selectedPos.symbol.includes(' PE'));
-        const isOptWrite = Boolean(selectedPos.isOptionWriting || (isOpt && (isPosShort || posLev === 0.1)));
 
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
@@ -595,10 +587,10 @@ export default function PortfolioView({
 
                   <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder">
                     <div className="text-[10px] text-gray-400 font-medium uppercase">
-                      {isOpt ? 'Product Type' : 'Leverage'}
+                      Futures Leverage
                     </div>
                     <div className="text-sm font-bold tabular-nums text-amber-600 dark:text-amber-400 mt-0.5">
-                      {isOpt ? 'OPTIONS' : `${posLev}x LEVERAGE`}
+                      {posLev}x LEVERAGE
                     </div>
                   </div>
 
@@ -646,7 +638,7 @@ export default function PortfolioView({
                   </div>
 
                   <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder">
-                    <div className="text-[10px] text-gray-400 font-medium uppercase">Option Total Premium</div>
+                    <div className="text-[10px] text-gray-400 font-medium uppercase">Nominal Position Value</div>
                     <div className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white mt-0.5">
                       ${nominalVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </div>
@@ -655,7 +647,7 @@ export default function PortfolioView({
                   <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder">
                     <div className="text-[10px] text-gray-400 font-medium uppercase">Position Side</div>
                     <div className="text-sm font-semibold text-gray-900 dark:text-white mt-0.5">
-                      {isPosClosed ? 'CLOSED' : isPosShort ? 'SHORT (WRITE)' : 'LONG'}
+                      {isPosClosed ? 'CLOSED' : isPosShort ? 'SHORT' : 'LONG'}
                     </div>
                   </div>
 
