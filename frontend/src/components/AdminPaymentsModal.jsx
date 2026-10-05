@@ -49,6 +49,8 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
   const [usersList, setUsersList] = useState([]);
   const [userSearch, setUserSearch] = useState('');
   const [userPlanFilter, setUserPlanFilter] = useState('all'); // 'all' | 'paid' | 'free' | 'admin' | 'banned'
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPerPage, setUsersPerPage] = useState(15);
   const [selectedUserForAction, setSelectedUserForAction] = useState(null);
   const [grantPlanId, setGrantPlanId] = useState('reset_10k');
   const [grantDays, setGrantDays] = useState(30);
@@ -829,346 +831,418 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
         {/* ========================================================================= */}
         {/* TAB 1: USERS & PLANS DIRECTORY                                            */}
         {/* ========================================================================= */}
-        {activeTab === 'users' && (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4">
-            
-            {/* Search, Filters & Export Ribbon */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 flex-1 min-w-[260px]">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
-                  <input
-                    type="text"
-                    value={userSearch}
-                    onChange={(e) => setUserSearch(e.target.value)}
-                    placeholder="Search by email, name, or User ID..."
-                    className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                </div>
-                <button
-                  onClick={fetchUsers}
-                  className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1"
-                >
-                  Search
-                </button>
-              </div>
+        {activeTab === 'users' && (() => {
+          const totalUsersCount = usersList.length;
+          const totalUserPages = usersPerPage === 'all' ? 1 : Math.max(1, Math.ceil(totalUsersCount / usersPerPage));
+          const currentUserPage = Math.min(usersPage, totalUserPages);
+          const displayedUsers = usersPerPage === 'all'
+            ? usersList
+            : usersList.slice((currentUserPage - 1) * usersPerPage, currentUserPage * usersPerPage);
 
-              {/* Plan Filter Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto">
-                {[
-                  { id: 'all', label: 'All Users' },
-                  { id: 'paid', label: 'Paid Plans' },
-                  { id: 'free', label: 'Free Basic' },
-                  { id: 'banned', label: 'Frozen / Banned' },
-                  { id: 'admin', label: 'Admins' }
-                ].map(f => (
-                  <button
-                    key={f.id}
-                    onClick={() => setUserPlanFilter(f.id)}
-                    className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                      userPlanFilter === f.id
-                        ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
-                        : 'bg-gray-100 dark:bg-surface-darkCard text-gray-600 dark:text-gray-400 hover:bg-gray-200'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-
-                {/* 1-Click Export CSV */}
-                <button
-                  onClick={() => handleExportCsv('users')}
-                  className="px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1 transition-colors"
-                  title="Export complete users database to CSV"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Export Users CSV</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Users Table */}
-            <div className="rounded-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden bg-white dark:bg-surface-darkPanel shadow-xs">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-gray-50 dark:bg-surface-darkCard border-b border-gray-200 dark:border-surface-darkBorder text-gray-500 dark:text-gray-400 uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="p-3">User &amp; Profile</th>
-                      <th className="p-3">Active Plan</th>
-                      <th className="p-3">Validity / Days Left</th>
-                      <th className="p-3">Virtual Cash</th>
-                      <th className="p-3">Max Lev</th>
-                      <th className="p-3">Trades / P&amp;L</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100 dark:divide-surface-darkBorder font-mono">
-                    {usersList.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-8 text-center text-gray-400 font-sans">
-                          No users matching this search or filter.
-                        </td>
-                      </tr>
-                    ) : (
-                      usersList.map((u) => {
-                        const isActionLoading = actionLoading[u.id];
-                        return (
-                          <tr key={u.id} className="hover:bg-gray-50/60 dark:hover:bg-surface-darkCard/40 transition-colors">
-                            
-                            {/* User & Email */}
-                            <td className="p-3 font-sans">
-                              <div className="flex items-center gap-2">
-                                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
-                                  u.isAdmin ? 'bg-amber-500 text-white' : (u.isBanned ? 'bg-rose-500 text-white' : 'bg-blue-600 text-white')
-                                }`}>
-                                  {u.displayName.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                  <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                                    <span>{u.displayName}</span>
-                                    {u.isAdmin && <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-500 font-bold">ADMIN</span>}
-                                    {u.isBanned && <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-500/20 text-rose-500 font-bold">FROZEN</span>}
-                                  </div>
-                                  <div className="text-[11px] text-gray-400 font-mono">#{u.id} • {u.email}</div>
-                                </div>
-                              </div>
-                            </td>
-
-                            {/* Plan Badge */}
-                            <td className="p-3 font-sans">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                u.isPaidPlan 
-                                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                                  : 'bg-gray-100 dark:bg-surface-darkBorder text-gray-600 dark:text-gray-400'
-                              }`}>
-                                {u.planName}
-                              </span>
-                            </td>
-
-                            {/* Validity / Expiry */}
-                            <td className="p-3 text-[11px]">
-                              {u.isPaidPlan ? (
-                                <div>
-                                  <span className="font-bold text-blue-600 dark:text-blue-400">
-                                    {u.daysLeft !== null ? `${u.daysLeft} Days left` : 'Active'}
-                                  </span>
-                                  <span className="block text-[10px] text-gray-400">
-                                    {u.planExpiresAt ? u.planExpiresAt.slice(0, 10) : 'Lifetime'}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-gray-400">Lifetime Basic</span>
-                              )}
-                            </td>
-
-                            {/* Balance */}
-                            <td className="p-3 font-bold text-gray-900 dark:text-white">
-                              ${u.virtualCash.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-
-                            {/* Max Leverage */}
-                            <td className="p-3">
-                              <span className="font-bold text-indigo-500">{u.maxLeverage}x</span>
-                            </td>
-
-                            {/* Volume & P&L */}
-                            <td className="p-3">
-                              <div className="text-[11px]">
-                                <span className={`font-bold ${u.totalPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                  {u.totalPnl >= 0 ? '+' : ''}${u.totalPnl.toFixed(2)}
-                                </span>
-                                <span className="block text-[10px] text-gray-400">
-                                  {u.positionsCount} open • {u.ordersCount} fills
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* Ban / Active Status */}
-                            <td className="p-3 font-sans">
-                              {u.isBanned ? (
-                                <div>
-                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-500 border border-rose-500/30 flex items-center gap-1 w-fit">
-                                    <Ban className="w-3 h-3" /> Frozen
-                                  </span>
-                                  {u.banReason && <span className="block text-[9px] text-rose-400 truncate max-w-[120px]">{u.banReason}</span>}
-                                </div>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 w-fit">
-                                  <Check className="w-3 h-3" /> Active
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Actions Drawer Trigger */}
-                            <td className="p-3 text-right font-sans">
-                              <button
-                                onClick={() => {
-                                  setSelectedUserForAction(u);
-                                  setGrantCash(u.virtualCash || 10000);
-                                }}
-                                className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-surface-darkBorder hover:bg-blue-600 hover:text-white text-gray-700 dark:text-gray-200 text-xs font-bold transition-all"
-                              >
-                                Manage
-                              </button>
-                            </td>
-
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Selected User Management Drawer / Modal */}
-            {selectedUserForAction && (
-              <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-                <div className="relative w-full max-w-lg bg-white dark:bg-surface-darkPanel rounded-2xl p-5 border border-gray-200 dark:border-surface-darkBorder shadow-2xl flex flex-col gap-4">
-                  
-                  <div className="flex items-center justify-between border-b border-gray-100 dark:border-surface-darkBorder pb-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                        Manage User #{selectedUserForAction.id} ({selectedUserForAction.displayName})
-                      </h3>
-                      <p className="text-xs text-gray-400 font-mono">{selectedUserForAction.email}</p>
-                    </div>
-                    <button onClick={() => setSelectedUserForAction(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-darkHover">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* 1. Grant Plan Fast Override */}
-                  <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 flex flex-col gap-2.5">
-                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5" /> 1-Click Plan Grant / Upgrade
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { id: 'reset_10k', label: 'Starter $10k', days: 30, cash: 10000 },
-                        { id: 'tier_20k', label: 'Pro $20k', days: 60, cash: 20000 },
-                        { id: 'tier_25k', label: 'Elite $25k', days: 180, cash: 25000 },
-                        { id: 'free', label: 'Revert Free', days: 0, cash: 2000 }
-                      ].map(p => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => {
-                            setGrantPlanId(p.id);
-                            setGrantDays(p.days);
-                            setGrantCash(p.cash);
-                          }}
-                          className={`p-2 rounded-xl text-center text-xs font-bold border transition-all ${
-                            grantPlanId === p.id 
-                              ? 'border-blue-600 bg-blue-600 text-white' 
-                              : 'border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkCard text-gray-700 dark:text-gray-300'
-                          }`}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={grantDays}
-                        onChange={(e) => setGrantDays(e.target.value)}
-                        placeholder="Days validity"
-                        className="w-1/2 px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder"
-                      />
-                      <input
-                        type="number"
-                        value={grantCash}
-                        onChange={(e) => setGrantCash(e.target.value)}
-                        placeholder="Virtual Capital ($)"
-                        className="w-1/2 px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder"
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => handleGrantPlan(selectedUserForAction.id)}
-                      disabled={actionLoading[selectedUserForAction.id]}
-                      className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-1.5"
-                    >
-                      <span>Grant Plan Directly (No Payment Required)</span>
-                    </button>
-                  </div>
-
-                  {/* 2. Direct Cash Balance Override */}
-                  <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder flex flex-col gap-2">
-                    <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
-                      Override Cash Balance ($)
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        value={customCashAmount}
-                        onChange={(e) => setCustomCashAmount(e.target.value)}
-                        placeholder={`Current: $${selectedUserForAction.virtualCash.toLocaleString('en-US')}`}
-                        className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkPanel border border-gray-200 dark:border-surface-darkBorder font-mono"
-                      />
-                      <button
-                        onClick={() => handleAdjustCash(selectedUserForAction.id)}
-                        disabled={!customCashAmount}
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-50"
-                      >
-                        Set Cash
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 3. Freeze / Ban Trading Controls */}
-                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 flex flex-col gap-2">
-                    <span className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
-                      <Ban className="w-3.5 h-3.5" /> Trading Suspension &amp; Account Freeze
-                    </span>
+          return (
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4">
+              
+              {/* Search, Filters & Export Ribbon */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
                     <input
                       type="text"
-                      value={banReasonInput}
-                      onChange={(e) => setBanReasonInput(e.target.value)}
-                      placeholder="Reason for suspension (visible to trader)"
-                      className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkPanel border border-gray-200 dark:border-surface-darkBorder"
+                      value={userSearch}
+                      onChange={(e) => {
+                        setUserSearch(e.target.value);
+                        setUsersPage(1);
+                      }}
+                      placeholder="Search by email, name, or User ID..."
+                      className="w-full pl-9 pr-3 py-2 rounded-xl text-xs bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleToggleBan(selectedUserForAction.id, selectedUserForAction.isBanned)}
-                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${
-                          selectedUserForAction.isBanned 
-                            ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
-                            : 'bg-rose-600 hover:bg-rose-700 text-white'
-                        }`}
-                      >
-                        {selectedUserForAction.isBanned ? 'Unban / Restore Trading' : 'Freeze Trading Privileges'}
-                      </button>
-
-                      <button
-                        onClick={() => handleToggleAdmin(selectedUserForAction.id)}
-                        className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-surface-darkBorder text-xs font-semibold hover:bg-gray-100"
-                      >
-                        {selectedUserForAction.isAdmin ? 'Revoke Admin' : 'Make Admin'}
-                      </button>
-                    </div>
                   </div>
+                  <button
+                    onClick={() => {
+                      setUsersPage(1);
+                      fetchUsers();
+                    }}
+                    className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1"
+                  >
+                    Search
+                  </button>
+                  <span className="text-xs font-bold text-gray-500 bg-gray-100 dark:bg-surface-darkCard px-2.5 py-2 rounded-xl border border-gray-200 dark:border-surface-darkBorder">
+                    {totalUsersCount} Traders
+                  </span>
+                </div>
 
-                  {/* 4. Wipe / Reset Account */}
-                  <div className="pt-1 flex items-center justify-between">
-                    <span className="text-xs text-gray-400">Emergency Reset</span>
+                {/* Plan Filter Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto">
+                  {[
+                    { id: 'all', label: 'All Users' },
+                    { id: 'paid', label: 'Paid Plans' },
+                    { id: 'free', label: 'Free Basic' },
+                    { id: 'banned', label: 'Frozen / Banned' },
+                    { id: 'admin', label: 'Admins' }
+                  ].map(f => (
                     <button
-                      onClick={() => handleResetPortfolio(selectedUserForAction.id)}
-                      className="text-xs text-rose-500 hover:underline flex items-center gap-1 font-semibold"
+                      key={f.id}
+                      onClick={() => {
+                        setUserPlanFilter(f.id);
+                        setUsersPage(1);
+                      }}
+                      className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                        userPlanFilter === f.id
+                          ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+                          : 'bg-gray-100 dark:bg-surface-darkCard text-gray-600 dark:text-gray-400 hover:bg-gray-200'
+                      }`}
                     >
-                      <Trash2 className="w-3.5 h-3.5" /> Wipe Portfolio &amp; Close Open Trades
+                      {f.label}
                     </button>
-                  </div>
+                  ))}
 
+                  {/* 1-Click Export CSV */}
+                  <button
+                    onClick={() => handleExportCsv('users')}
+                    className="px-3 py-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1 transition-colors"
+                    title="Export complete users database to CSV"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export Users CSV</span>
+                  </button>
                 </div>
               </div>
-            )}
 
-          </div>
-        )}
+              {/* Users Table */}
+              <div className="rounded-2xl border border-gray-200 dark:border-surface-darkBorder overflow-hidden bg-white dark:bg-surface-darkPanel shadow-xs flex flex-col">
+                <div className="overflow-x-auto max-h-[50vh] overflow-y-auto scrollbar-thin">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 dark:bg-surface-darkCard border-b border-gray-200 dark:border-surface-darkBorder text-gray-500 dark:text-gray-400 uppercase tracking-wider text-[10px] sticky top-0 z-10 shadow-xs">
+                      <tr>
+                        <th className="p-3">User &amp; Profile</th>
+                        <th className="p-3">Active Plan</th>
+                        <th className="p-3">Validity / Days Left</th>
+                        <th className="p-3">Virtual Cash</th>
+                        <th className="p-3">Max Lev</th>
+                        <th className="p-3">Trades / P&amp;L</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100 dark:divide-surface-darkBorder font-mono">
+                      {displayedUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-gray-400 font-sans">
+                            No users matching this search or filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        displayedUsers.map((u) => {
+                          const isActionLoading = actionLoading[u.id];
+                          return (
+                            <tr key={u.id} className="hover:bg-gray-50/60 dark:hover:bg-surface-darkCard/40 transition-colors">
+                              
+                              {/* User & Email */}
+                              <td className="p-3 font-sans">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+                                    u.isAdmin ? 'bg-amber-500 text-white' : (u.isBanned ? 'bg-rose-500 text-white' : 'bg-blue-600 text-white')
+                                  }`}>
+                                    {u.displayName.charAt(0).toUpperCase()}
+                                  </div>
+                                  <div>
+                                    <div className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                                      <span>{u.displayName}</span>
+                                      {u.isAdmin && <span className="px-1.5 py-0.2 rounded text-[9px] bg-amber-500/20 text-amber-500 font-bold">ADMIN</span>}
+                                      {u.isBanned && <span className="px-1.5 py-0.2 rounded text-[9px] bg-rose-500/20 text-rose-500 font-bold">FROZEN</span>}
+                                    </div>
+                                    <div className="text-[11px] text-gray-400 font-mono">#{u.id} • {u.email}</div>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Plan Badge */}
+                              <td className="p-3 font-sans">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  u.isPaidPlan 
+                                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-gray-100 dark:bg-surface-darkBorder text-gray-600 dark:text-gray-400'
+                                }`}>
+                                  {u.planName}
+                                </span>
+                              </td>
+
+                              {/* Validity / Expiry */}
+                              <td className="p-3 text-[11px]">
+                                {u.isPaidPlan ? (
+                                  <div>
+                                    <span className="font-bold text-blue-600 dark:text-blue-400">
+                                      {u.daysLeft !== null ? `${u.daysLeft} Days left` : 'Active'}
+                                    </span>
+                                    <span className="block text-[10px] text-gray-400">
+                                      {u.planExpiresAt ? u.planExpiresAt.slice(0, 10) : 'Lifetime'}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-400">Lifetime Basic</span>
+                                )}
+                              </td>
+
+                              {/* Balance */}
+                              <td className="p-3 font-bold text-gray-900 dark:text-white">
+                                ${u.virtualCash.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </td>
+
+                              {/* Max Leverage */}
+                              <td className="p-3">
+                                <span className="font-bold text-indigo-500">{u.maxLeverage}x</span>
+                              </td>
+
+                              {/* Volume & P&L */}
+                              <td className="p-3">
+                                <div className="text-[11px]">
+                                  <span className={`font-bold ${u.totalPnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                    {u.totalPnl >= 0 ? '+' : ''}${u.totalPnl.toFixed(2)}
+                                  </span>
+                                  <span className="block text-[10px] text-gray-400">
+                                    {u.positionsCount} open • {u.ordersCount} fills
+                                  </span>
+                                </div>
+                              </td>
+
+                              {/* Ban / Active Status */}
+                              <td className="p-3 font-sans">
+                                {u.isBanned ? (
+                                  <div>
+                                    <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/15 text-rose-500 border border-rose-500/30 flex items-center gap-1 w-fit">
+                                      <Ban className="w-3 h-3" /> Frozen
+                                    </span>
+                                    {u.banReason && <span className="block text-[9px] text-rose-400 truncate max-w-[120px]">{u.banReason}</span>}
+                                  </div>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 w-fit">
+                                    <Check className="w-3 h-3" /> Active
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Actions Drawer Trigger */}
+                              <td className="p-3 text-right font-sans">
+                                <button
+                                  onClick={() => {
+                                    setSelectedUserForAction(u);
+                                    setGrantCash(u.virtualCash || 10000);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-surface-darkBorder hover:bg-blue-600 hover:text-white text-gray-700 dark:text-gray-200 text-xs font-bold transition-all"
+                                >
+                                  Manage
+                                </button>
+                              </td>
+
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Table Footer & Pagination Ribbon */}
+                <div className="p-3 border-t border-gray-200 dark:border-surface-darkBorder bg-gray-50/70 dark:bg-surface-darkCard/50 flex flex-wrap items-center justify-between gap-2 text-xs select-none">
+                  <div className="text-gray-500 dark:text-gray-400 font-medium">
+                    Showing <span className="font-bold text-gray-900 dark:text-white">{totalUsersCount === 0 ? 0 : (usersPerPage === 'all' ? 1 : (currentUserPage - 1) * usersPerPage + 1)}</span> to <span className="font-bold text-gray-900 dark:text-white">{usersPerPage === 'all' ? totalUsersCount : Math.min(currentUserPage * usersPerPage, totalUsersCount)}</span> of <span className="font-bold text-blue-600 dark:text-blue-400">{totalUsersCount}</span> registered traders
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] text-gray-400">Rows:</span>
+                      <select
+                        value={usersPerPage}
+                        onChange={(e) => {
+                          setUsersPerPage(e.target.value === 'all' ? 'all' : Number(e.target.value));
+                          setUsersPage(1);
+                        }}
+                        className="px-2 py-1 rounded-md bg-white dark:bg-surface-darkPanel border border-gray-200 dark:border-surface-darkBorder text-xs font-semibold text-gray-900 dark:text-white"
+                      >
+                        <option value={10}>10</option>
+                        <option value={15}>15</option>
+                        <option value={25}>25</option>
+                        <option value={50}>50</option>
+                        <option value="all">Show All ({totalUsersCount})</option>
+                      </select>
+                    </div>
+
+                    {usersPerPage !== 'all' && totalUserPages > 1 && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                          disabled={currentUserPage <= 1}
+                          className="px-2.5 py-1 rounded-md border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel hover:bg-gray-100 dark:hover:bg-surface-darkHover disabled:opacity-40 font-semibold transition-colors"
+                        >
+                          Prev
+                        </button>
+                        <span className="px-2 font-mono text-[11px] text-gray-500">
+                          {currentUserPage} / {totalUserPages}
+                        </span>
+                        <button
+                          onClick={() => setUsersPage(p => Math.min(totalUserPages, p + 1))}
+                          disabled={currentUserPage >= totalUserPages}
+                          className="px-2.5 py-1 rounded-md border border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkPanel hover:bg-gray-100 dark:hover:bg-surface-darkHover disabled:opacity-40 font-semibold transition-colors"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Selected User Management Drawer / Modal */}
+              {selectedUserForAction && (
+                <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+                  <div className="relative w-full max-w-lg bg-white dark:bg-surface-darkPanel rounded-2xl p-5 border border-gray-200 dark:border-surface-darkBorder shadow-2xl flex flex-col gap-4">
+                    
+                    <div className="flex items-center justify-between border-b border-gray-100 dark:border-surface-darkBorder pb-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                          Manage User #{selectedUserForAction.id} ({selectedUserForAction.displayName})
+                        </h3>
+                        <p className="text-xs text-gray-400 font-mono">{selectedUserForAction.email}</p>
+                      </div>
+                      <button onClick={() => setSelectedUserForAction(null)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-surface-darkHover">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* 1. Grant Plan Fast Override */}
+                    <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 flex flex-col gap-2.5">
+                      <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> 1-Click Plan Grant / Upgrade
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: 'reset_10k', label: 'Starter $10k', days: 30, cash: 10000 },
+                          { id: 'tier_20k', label: 'Pro $20k', days: 60, cash: 20000 },
+                          { id: 'tier_25k', label: 'Elite $25k', days: 180, cash: 25000 },
+                          { id: 'free', label: 'Revert Free', days: 0, cash: 2000 }
+                        ].map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => {
+                              setGrantPlanId(p.id);
+                              setGrantDays(p.days);
+                              setGrantCash(p.cash);
+                            }}
+                            className={`p-2 rounded-xl text-center text-xs font-bold border transition-all ${
+                              grantPlanId === p.id 
+                                ? 'border-blue-600 bg-blue-600 text-white' 
+                                : 'border-gray-200 dark:border-surface-darkBorder bg-white dark:bg-surface-darkCard text-gray-700 dark:text-gray-300'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={grantDays}
+                          onChange={(e) => setGrantDays(e.target.value)}
+                          placeholder="Days validity"
+                          className="w-1/2 px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white"
+                        />
+                        <input
+                          type="number"
+                          value={grantCash}
+                          onChange={(e) => setGrantCash(e.target.value)}
+                          placeholder="Virtual Capital ($)"
+                          className="w-1/2 px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white"
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => handleGrantPlan(selectedUserForAction.id)}
+                        disabled={actionLoading[selectedUserForAction.id]}
+                        className="w-full py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-1.5"
+                      >
+                        <span>Grant Plan Directly (No Payment Required)</span>
+                      </button>
+                    </div>
+
+                    {/* 2. Direct Cash Balance Override */}
+                    <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder flex flex-col gap-2">
+                      <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                        Override Cash Balance ($)
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={customCashAmount}
+                          onChange={(e) => setCustomCashAmount(e.target.value)}
+                          placeholder={`Current: $${selectedUserForAction.virtualCash.toLocaleString('en-US')}`}
+                          className="flex-1 px-3 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkPanel border border-gray-200 dark:border-surface-darkBorder font-mono text-gray-900 dark:text-white"
+                        />
+                        <button
+                          onClick={() => handleAdjustCash(selectedUserForAction.id)}
+                          disabled={!customCashAmount}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-50"
+                        >
+                          Set Cash
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 3. Freeze / Ban Trading Controls */}
+                    <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 flex flex-col gap-2">
+                      <span className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1">
+                        <Ban className="w-3.5 h-3.5" /> Trading Suspension &amp; Account Freeze
+                      </span>
+                      <input
+                        type="text"
+                        value={banReasonInput}
+                        onChange={(e) => setBanReasonInput(e.target.value)}
+                        placeholder="Reason for suspension (visible to trader)"
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg bg-white dark:bg-surface-darkPanel border border-gray-200 dark:border-surface-darkBorder text-gray-900 dark:text-white"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleToggleBan(selectedUserForAction.id, selectedUserForAction.isBanned)}
+                          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-colors ${
+                            selectedUserForAction.isBanned 
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white' 
+                              : 'bg-rose-600 hover:bg-rose-700 text-white'
+                          }`}
+                        >
+                          {selectedUserForAction.isBanned ? 'Unban / Restore Trading' : 'Freeze Trading Privileges'}
+                        </button>
+
+                        <button
+                          onClick={() => handleToggleAdmin(selectedUserForAction.id)}
+                          className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-surface-darkBorder text-xs font-semibold hover:bg-gray-100"
+                        >
+                          {selectedUserForAction.isAdmin ? 'Revoke Admin' : 'Make Admin'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 4. Wipe / Reset Account */}
+                    <div className="pt-1 flex items-center justify-between">
+                      <span className="text-xs text-gray-400">Emergency Reset</span>
+                      <button
+                        onClick={() => handleResetPortfolio(selectedUserForAction.id)}
+                        className="text-xs text-rose-500 hover:underline flex items-center gap-1 font-semibold"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Wipe Portfolio &amp; Close Open Trades
+                      </button>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
+            </div>
+          );
+        })()}
+
 
         {/* ========================================================================= */}
         {/* TAB 2: UPI PAYMENTS & APPROVALS                                           */}
