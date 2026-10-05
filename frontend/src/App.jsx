@@ -669,7 +669,7 @@ export default function App() {
       <footer className="hidden md:block border-t border-gray-200 dark:border-surface-darkBorder py-3 px-4 text-center text-xs text-gray-500 dark:text-gray-400 select-none">
         <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
           <span>ZeroVega &bull; ZeroBoss Ecosystem</span>
-          <span>US Stocks &bull; Crypto (Binance) &bull; Forex (Twelve Data) &bull; Options (CBOE)</span>
+          <span>US Stocks &bull; Crypto (Binance) &bull; Forex (Twelve Data) &bull; Futures (1x–20x)</span>
           <span className="text-blue-500 font-semibold">100% Simulated Paper Trading Platform</span>
         </div>
       </footer>

@@ -75,7 +75,7 @@ export default function Navbar({
           <div className="flex items-center gap-4 sm:gap-6 font-mono text-[11px]">
             <div className="flex items-center gap-1.5 font-sans font-medium text-gray-400">
               <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-              <span className="hidden sm:inline">{wsConnected ? 'CBOE/Binance Live' : 'Connecting...'}</span>
+              <span className="hidden sm:inline">{wsConnected ? 'Live Market Feeds' : 'Connecting...'}</span>
             </div>
 
             {spx && (
