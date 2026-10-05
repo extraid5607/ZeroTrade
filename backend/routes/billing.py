@@ -69,10 +69,47 @@ MONETIZATION_PLANS = [
 ]
 
 
+def get_db_plans() -> List[Dict[str, Any]]:
+    """Retrieve monetization plans from database, with fallback to default configurations."""
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM monetization_plans WHERE is_active = 1 ORDER BY display_order ASC, price_inr ASC")
+            rows = cursor.fetchall()
+            if rows:
+                plans = []
+                for r in rows:
+                    feats = []
+                    if r["features"]:
+                        feats = [f.strip() for f in r["features"].split("\n") if f.strip()]
+                    plans.append({
+                        "id": r["id"],
+                        "name": r["name"],
+                        "priceInr": float(r["price_inr"]),
+                        "virtualCash": float(r["virtual_cash"]),
+                        "durationDays": int(r["duration_days"]),
+                        "maxLeverage": int(r["max_leverage"] or 20),
+                        "badge": r["badge"] or f"{r['duration_days']} DAYS",
+                        "popular": bool("20k" in r["id"] or "10k" in r["id"]),
+                        "description": r["description"] or "",
+                        "features": feats
+                    })
+                return plans
+    except Exception as e:
+        logger.debug(f"Failed to fetch plans from DB: {e}")
+    return MONETIZATION_PLANS
+
+
+class ValidateCouponRequest(BaseModel):
+    code: str
+    plan_id: Optional[str] = None
+
+
 class PaymentSubmission(BaseModel):
     plan_id: str
     utr_ref: str
     amount_inr: float
+    coupon_code: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -105,12 +142,61 @@ def require_admin(
 @router.get("/plans")
 def get_plans():
     """Return list of active monetization plans and merchant UPI details."""
+    plans = get_db_plans()
     return {
         "merchantUpiId": MERCHANT_UPI_ID,
         "merchantName": MERCHANT_NAME,
         "currency": "INR",
-        "plans": MONETIZATION_PLANS
+        "plans": plans
     }
+
+
+@router.post("/validate-coupon")
+def validate_coupon(req: ValidateCouponRequest, user: dict = Depends(get_current_user)):
+    """Validate a promotional discount coupon and compute final price."""
+    code = req.code.strip().upper()
+    if not code:
+        raise HTTPException(status_code=400, detail="Please enter a promo code.")
+
+    plans = get_db_plans()
+    matched_plan = next((p for p in plans if p["id"] == req.plan_id), None) if req.plan_id else None
+    base_price = matched_plan["priceInr"] if matched_plan else 0.0
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM coupons WHERE UPPER(code) = ? AND is_active = 1", (code,))
+        coupon = cursor.fetchone()
+        if not coupon:
+            raise HTTPException(status_code=404, detail=f"Promo code '{code}' is invalid or expired.")
+
+        # Check max uses
+        if coupon["max_uses"] and coupon["used_count"] >= coupon["max_uses"]:
+            raise HTTPException(status_code=400, detail="This promo code has reached its maximum usage limit.")
+
+        # Check specific plan restriction
+        if coupon["plan_id"] and req.plan_id and coupon["plan_id"] != req.plan_id:
+            raise HTTPException(status_code=400, detail=f"This promo code is only valid for {coupon['plan_id']} plan.")
+
+        discount_percent = float(coupon["discount_percent"] or 0.0)
+        discount_amount_inr = float(coupon["discount_amount_inr"] or 0.0)
+
+        discount_inr = 0.0
+        if discount_percent > 0 and base_price > 0:
+            discount_inr = round((base_price * discount_percent) / 100.0, 2)
+        elif discount_amount_inr > 0:
+            discount_inr = min(base_price, discount_amount_inr)
+
+        final_price = max(1.0, base_price - discount_inr) if base_price > 0 else 0.0
+
+        return {
+            "valid": True,
+            "code": code,
+            "discountPercent": discount_percent,
+            "discountAmountInr": discount_inr,
+            "originalPriceInr": base_price,
+            "finalPriceInr": final_price,
+            "message": f"Coupon applied! You save ₹{discount_inr:,.2f}"
+        }
 
 
 @router.post("/submit-payment")
@@ -120,7 +206,7 @@ def submit_payment(
 ):
     """
     Submit a 12-digit UPI Transaction Reference (UTR) for Bank Verification.
-    Strictly validates 12 digits, checks for duplicates, and queues the order as 'pending'.
+    Strictly validates 12 digits, checks for duplicates, applies coupons, and queues the order as 'pending'.
     """
     user_id = user["id"]
     plan_id = data.plan_id.strip()
@@ -135,16 +221,31 @@ def submit_payment(
         )
 
     # 2. Match Plan
-    matched_plan = next((p for p in MONETIZATION_PLANS if p["id"] == plan_id), None)
+    plans = get_db_plans()
+    matched_plan = next((p for p in plans if p["id"] == plan_id), None)
     if not matched_plan:
         raise HTTPException(status_code=400, detail="Invalid plan selected.")
 
     target_cash = matched_plan["virtualCash"]
     plan_name = matched_plan["name"]
     amount_inr = float(matched_plan["priceInr"])
+    coupon_note = ""
 
     with get_db() as conn:
         cursor = conn.cursor()
+
+        # Handle coupon if provided
+        if data.coupon_code:
+            c_code = data.coupon_code.strip().upper()
+            cursor.execute("SELECT * FROM coupons WHERE UPPER(code) = ? AND is_active = 1", (c_code,))
+            c_row = cursor.fetchone()
+            if c_row and (not c_row["max_uses"] or c_row["used_count"] < c_row["max_uses"]):
+                disc_pct = float(c_row["discount_percent"] or 0.0)
+                disc_flat = float(c_row["discount_amount_inr"] or 0.0)
+                disc = (amount_inr * disc_pct / 100.0) if disc_pct > 0 else disc_flat
+                amount_inr = max(1.0, amount_inr - disc)
+                coupon_note = f"Coupon: {c_code} (-₹{disc:.2f})"
+                cursor.execute("UPDATE coupons SET used_count = used_count + 1 WHERE id = ?", (c_row["id"],))
 
         # 3. Strict Anti-Duplicate Check: Prevent using the same UTR multiple times
         cursor.execute("SELECT id, status, created_at FROM payment_orders WHERE utr_ref = ?", (utr_clean,))

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { AlertTriangle, Info as InfoIcon, X as CloseIcon, AlertOctagon, CheckCircle2 } from 'lucide-react';
 import Navbar from './components/Navbar';
 import Watchlist from './components/Watchlist';
 import CandleChart from './components/CandleChart';
@@ -59,6 +60,32 @@ export default function App() {
   const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
   const [deferredInstallPrompt, setDeferredInstallPrompt] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Broadcast Announcement Banner State
+  const [announcement, setAnnouncement] = useState(null);
+  const [isAnnouncementDismissed, setIsAnnouncementDismissed] = useState(false);
+
+  // Fetch broadcast announcement
+  useEffect(() => {
+    async function loadAnnouncement() {
+      try {
+        const res = await fetch('/api/announcements/active');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.active && data.message) {
+            setAnnouncement(data);
+          } else {
+            setAnnouncement(null);
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+    loadAnnouncement();
+    const interval = setInterval(loadAnnouncement, 30000); // Poll every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   const wsRef = useRef(null);
 
@@ -468,6 +495,34 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-surface-darkBg text-gray-900 dark:text-gray-100 flex flex-col font-sans transition-colors duration-200 pb-16 md:pb-0">
       
+      {/* 0. Broadcast Platform Announcement Banner */}
+      {announcement && !isAnnouncementDismissed && (
+        <div className={`w-full px-4 py-2 text-xs font-semibold flex items-center justify-between gap-3 shadow-sm transition-all animate-in slide-in-from-top duration-300 z-50 ${
+          announcement.type === 'danger' 
+            ? 'bg-rose-600 text-white' 
+            : (announcement.type === 'warning' 
+                ? 'bg-amber-600 text-white' 
+                : (announcement.type === 'success' 
+                    ? 'bg-emerald-600 text-white' 
+                    : 'bg-blue-600 text-white'))
+        }`}>
+          <div className="flex items-center gap-2 flex-1 max-w-7xl mx-auto overflow-hidden">
+            {announcement.type === 'danger' && <AlertOctagon className="w-4 h-4 flex-shrink-0 animate-pulse" />}
+            {announcement.type === 'warning' && <AlertTriangle className="w-4 h-4 flex-shrink-0" />}
+            {announcement.type === 'success' && <CheckCircle2 className="w-4 h-4 flex-shrink-0" />}
+            {(!announcement.type || announcement.type === 'info') && <InfoIcon className="w-4 h-4 flex-shrink-0" />}
+            <span className="truncate">{announcement.message}</span>
+          </div>
+          <button
+            onClick={() => setIsAnnouncementDismissed(true)}
+            className="p-1 rounded hover:bg-black/20 text-white/90 hover:text-white transition-colors"
+            title="Dismiss Announcement"
+          >
+            <CloseIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* 1. Top Navigation Bar (Indian Broker Style with Ticker Tape) */}
       <Navbar
         activeTab={activeTab}

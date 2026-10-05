@@ -107,6 +107,7 @@ app.include_router(trading.router)
 app.include_router(leaderboard.router)
 app.include_router(billing.router)
 app.include_router(admin.router)
+app.include_router(admin.public_router)
 
 
 @app.get("/health")

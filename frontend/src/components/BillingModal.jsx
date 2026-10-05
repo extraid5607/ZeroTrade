@@ -91,6 +91,7 @@ export default function BillingModal({
   onOpenAuth,
   user
 }) {
+  const [plansList, setPlansList] = useState(PLANS);
   const [selectedPlanId, setSelectedPlanId] = useState(initialPlanId);
   const [utrRef, setUtrRef] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -99,9 +100,38 @@ export default function BillingModal({
   const [successData, setSuccessData] = useState(null);
   const [step, setStep] = useState('select'); // 'select' | 'pay' | 'submitted' | 'history'
   
+  // Coupon State
+  const [couponCode, setCouponCode] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+  const [couponMsg, setCouponMsg] = useState(null);
+  const [couponError, setCouponError] = useState(null);
+
   // User payment history state
   const [historyOrders, setHistoryOrders] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // Fetch active plans from backend
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const res = await fetch('/api/billing/plans');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.plans && data.plans.length > 0) {
+            setPlansList(data.plans.map(p => ({
+              ...p,
+              icon: p.id.includes('25k') ? TrendingUp : (p.id.includes('20k') ? Zap : RotateCcw),
+              color: p.id.includes('25k') ? 'from-amber-500 to-orange-600' : (p.id.includes('20k') ? 'from-purple-600 to-indigo-600' : 'from-blue-600 to-indigo-600')
+            })));
+          }
+        }
+      } catch (e) {
+        // ignore fallback to PLANS
+      }
+    }
+    loadPlans();
+  }, [isOpen]);
 
   useEffect(() => {
     if (initialPlanId) {
@@ -116,6 +146,10 @@ export default function BillingModal({
       setError(null);
       setSuccessData(null);
       setCopied(false);
+      setCouponCode('');
+      setAppliedCoupon(null);
+      setCouponMsg(null);
+      setCouponError(null);
     }
   }, [isOpen]);
 
@@ -147,10 +181,11 @@ export default function BillingModal({
 
   if (!isOpen) return null;
 
-  const selectedPlan = PLANS.find(p => p.id === selectedPlanId) || PLANS[0];
+  const selectedPlan = plansList.find(p => p.id === selectedPlanId) || plansList[0] || PLANS[0];
+  const payableAmount = appliedCoupon ? appliedCoupon.finalPriceInr : selectedPlan.priceInr;
 
   // Standard UPI URI format
-  const upiUri = `upi://pay?pa=${MERCHANT_UPI}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${selectedPlan.priceInr}&cu=INR&tn=${encodeURIComponent(selectedPlan.name)}`;
+  const upiUri = `upi://pay?pa=${MERCHANT_UPI}&pn=${encodeURIComponent(MERCHANT_NAME)}&am=${payableAmount}&cu=INR&tn=${encodeURIComponent(selectedPlan.name)}`;
 
   const handleCopyUPI = () => {
     navigator.clipboard.writeText(MERCHANT_UPI);
@@ -175,6 +210,38 @@ export default function BillingModal({
     if (error) setError(null);
   };
 
+  const handleApplyCoupon = async () => {
+    if (!couponCode.trim()) return;
+    setCouponLoading(true);
+    setCouponError(null);
+    setCouponMsg(null);
+    try {
+      const token = localStorage.getItem('zerotrade_token');
+      const res = await fetch('/api/billing/validate-coupon', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          code: couponCode.trim(),
+          plan_id: selectedPlan.id
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.detail || 'Invalid coupon code');
+      }
+      setAppliedCoupon(data);
+      setCouponMsg(data.message || `Coupon ${data.code} applied! Saved ₹${data.discountAmountInr}`);
+    } catch (err) {
+      setCouponError(err.message || 'Invalid coupon');
+      setAppliedCoupon(null);
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
   const handleSubmitPayment = async (e) => {
     e.preventDefault();
     const cleanUtr = utrRef.trim();
@@ -197,7 +264,8 @@ export default function BillingModal({
         body: JSON.stringify({
           plan_id: selectedPlan.id,
           utr_ref: cleanUtr,
-          amount_inr: selectedPlan.priceInr
+          amount_inr: payableAmount,
+          coupon_code: appliedCoupon ? appliedCoupon.code : null
         })
       });
 
@@ -280,8 +348,8 @@ export default function BillingModal({
           {step === 'select' && (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {PLANS.map((plan) => {
-                  const Icon = plan.icon;
+                {plansList.map((plan) => {
+                  const Icon = plan.icon || RotateCcw;
                   const isSelected = selectedPlanId === plan.id;
                   return (
                     <div
@@ -300,7 +368,7 @@ export default function BillingModal({
                             ? 'bg-blue-600 text-white shadow-xs' 
                             : 'bg-gray-100 dark:bg-surface-darkBorder text-gray-600 dark:text-gray-300'
                         }`}>
-                          {plan.badge}
+                          {plan.badge || `${plan.durationDays} DAYS`}
                         </span>
 
                         <div className="flex items-baseline gap-1 text-right">
@@ -314,7 +382,7 @@ export default function BillingModal({
                       {/* Plan Details */}
                       <div>
                         <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg bg-gradient-to-br ${plan.color} text-white`}>
+                          <div className={`p-1.5 rounded-lg bg-gradient-to-br ${plan.color || 'from-blue-600 to-indigo-600'} text-white`}>
                             <Icon className="w-4 h-4" />
                           </div>
                           <h3 className="font-bold text-xs sm:text-sm text-gray-900 dark:text-white">
@@ -339,7 +407,7 @@ export default function BillingModal({
 
                       {/* Bullet Features */}
                       <ul className="space-y-1 pt-2 border-t border-gray-100 dark:border-surface-darkBorder text-[11px] text-gray-600 dark:text-gray-300">
-                        {plan.features.map((f, i) => (
+                        {(plan.features || []).map((f, i) => (
                           <li key={i} className="flex items-center gap-1.5">
                             <Check className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
                             <span>{f}</span>
@@ -397,9 +465,17 @@ export default function BillingModal({
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                    ₹{selectedPlan.priceInr}
-                  </div>
+                  {appliedCoupon ? (
+                    <div>
+                      <span className="text-xs text-gray-400 line-through mr-1.5">₹{selectedPlan.priceInr}</span>
+                      <span className="text-lg font-bold text-emerald-500">₹{payableAmount}</span>
+                      <span className="block text-[10px] font-bold text-emerald-600">Saved ₹{appliedCoupon.discountAmountInr}</span>
+                    </div>
+                  ) : (
+                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                      ₹{selectedPlan.priceInr}
+                    </div>
+                  )}
                   <button 
                     type="button" 
                     onClick={() => setStep('select')}
@@ -475,11 +551,60 @@ export default function BillingModal({
                   </div>
 
                   <div className="text-[11px] text-gray-500 dark:text-gray-400 bg-blue-50/50 dark:bg-blue-950/20 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/40">
-                    🛡️ <strong>Anti-Fraud Verification:</strong> After transferring ₹{selectedPlan.priceInr}, copy the <strong>exact 12-digit UTR</strong> from your UPI app and submit below. Your capital will be unlocked upon bank statement match.
+                    🛡️ <strong>Anti-Fraud Verification:</strong> After transferring ₹{payableAmount}, copy the <strong>exact 12-digit UTR</strong> from your UPI app and submit below. Your capital will be unlocked upon bank statement match.
                   </div>
 
                 </div>
 
+              </div>
+
+              {/* Promo Code Box */}
+              <div className="p-3 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-200 dark:border-surface-darkBorder">
+                <label className="text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider block mb-1.5">
+                  Have a Promo / Discount Coupon?
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={couponCode}
+                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                    placeholder="Enter coupon (e.g. WELCOME20)"
+                    disabled={appliedCoupon !== null || couponLoading}
+                    className="flex-1 px-3 py-2 text-xs rounded-lg bg-white dark:bg-surface-darkPanel border border-gray-200 dark:border-surface-darkBorder font-mono uppercase tracking-wider text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  {appliedCoupon ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAppliedCoupon(null);
+                        setCouponCode('');
+                        setCouponMsg(null);
+                      }}
+                      className="px-3 py-2 text-xs font-semibold rounded-lg bg-gray-200 dark:bg-surface-darkHover text-gray-700 dark:text-gray-300 hover:bg-gray-300 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={couponLoading || !couponCode.trim()}
+                      className="px-3.5 py-2 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {couponLoading ? 'Checking...' : 'Apply Code'}
+                    </button>
+                  )}
+                </div>
+                {couponMsg && (
+                  <p className="text-[11px] text-emerald-500 font-semibold mt-1.5 flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" /> {couponMsg}
+                  </p>
+                )}
+                {couponError && (
+                  <p className="text-[11px] text-rose-500 font-semibold mt-1.5 flex items-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5" /> {couponError}
+                  </p>
+                )}
               </div>
 
               {/* Step 2 Form: Enter UTR */}

@@ -28,14 +28,50 @@ class PlaceOrderRequest(BaseModel):
     expiry_date: Optional[str] = None
 
 
+def check_user_trading_status(user: dict):
+    """Ensure user is not banned or frozen from trading."""
+    if user.get("isBanned") or user.get("is_banned") == 1:
+        reason = user.get("banReason") or user.get("ban_reason") or "Account under risk/compliance review"
+        raise HTTPException(
+            status_code=403,
+            detail=f"Trading Suspended: Your account has been frozen by Administrator. Reason: {reason}"
+        )
+
+
+def check_symbol_trading_overrides(symbol: str, requested_leverage: float):
+    """Check if symbol is disabled or leverage is capped by Admin."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT max_leverage, is_trading_disabled, notes FROM symbol_leverage_overrides WHERE symbol = ?", (symbol,))
+        row = cursor.fetchone()
+        if row:
+            if row["is_trading_disabled"] == 1:
+                note = row["notes"] or "Market risk controls active."
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Trading for {symbol} is currently disabled by Admin. ({note})"
+                )
+            sym_max_lev = float(row["max_leverage"])
+            if requested_leverage > sym_max_lev:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Maximum leverage for {symbol} is currently capped at {int(sym_max_lev)}x by Risk Engine."
+                )
+
+
 @router.post("/orders")
 def place_order(req: PlaceOrderRequest, user: dict = Depends(get_current_user)):
     """Place a simulated Market or Limit order with optional leverage for Futures and 10x margin for Option Selling."""
+    check_user_trading_status(user)
+
     user_id = user["id"]
     sym = req.symbol.strip().upper()
     side = req.side.strip().upper()
     otype = req.order_type.strip().upper()
     leverage = max(1.0, min(20.0, float(req.leverage or 1.0)))
+
+    # Check per-symbol leverage & disable overrides
+    check_symbol_trading_overrides(sym, leverage)
 
     # Enforce maximum leverage based on user's active plan
     max_allowed = float(user.get("maxLeverage") or user.get("max_leverage") or 2.0)
@@ -78,6 +114,7 @@ def place_order(req: PlaceOrderRequest, user: dict = Depends(get_current_user)):
 @router.delete("/orders/{order_id}")
 def cancel_order(order_id: int, user: dict = Depends(get_current_user)):
     """Cancel a pending limit order and unlock reserved funds."""
+    check_user_trading_status(user)
     try:
         res = order_engine.cancel_order(user["id"], order_id)
         return res
@@ -93,6 +130,7 @@ class ModifyOrderRequest(BaseModel):
 @router.put("/orders/{order_id}")
 def modify_order(order_id: int, req: ModifyOrderRequest, user: dict = Depends(get_current_user)):
     """Modify a pending limit order's quantity or limit price."""
+    check_user_trading_status(user)
     try:
         res = order_engine.modify_limit_order(user["id"], order_id, req.quantity, req.limit_price)
         return res
@@ -139,7 +177,8 @@ def get_portfolio(user: dict = Depends(get_current_user)):
 
 @router.post("/portfolio/reset")
 def reset_portfolio(user: dict = Depends(get_current_user)):
-    """Reset virtual cash balance to $100,000 and wipe all positions/order logs."""
+    """Reset virtual cash balance to starting plan amount and wipe all positions/order logs."""
+    check_user_trading_status(user)
     try:
         res = order_engine.reset_portfolio(user["id"])
         return res

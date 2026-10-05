@@ -275,13 +275,69 @@ def init_db():
             """)
 
             cursor.execute("""
-            CREATE TABLE IF NOT EXISTS watchlists (
+            CREATE TABLE IF NOT EXISTS system_announcements (
                 id SERIAL PRIMARY KEY,
-                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                symbol VARCHAR(64) NOT NULL,
-                asset_class VARCHAR(32) NOT NULL,
+                message TEXT NOT NULL,
+                announcement_type VARCHAR(32) DEFAULT 'info',
+                is_active INTEGER DEFAULT 1,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(user_id, symbol)
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_leverage_overrides (
+                symbol VARCHAR(64) PRIMARY KEY,
+                max_leverage DOUBLE PRECISION NOT NULL DEFAULT 20.0,
+                margin_rate DOUBLE PRECISION DEFAULT 1.0,
+                is_trading_disabled INTEGER DEFAULT 0,
+                notes TEXT,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS coupons (
+                id SERIAL PRIMARY KEY,
+                code VARCHAR(64) UNIQUE NOT NULL,
+                discount_percent DOUBLE PRECISION DEFAULT 0.0,
+                discount_amount_inr DOUBLE PRECISION DEFAULT 0.0,
+                max_uses INTEGER DEFAULT 100,
+                used_count INTEGER DEFAULT 0,
+                plan_id VARCHAR(64),
+                is_active INTEGER DEFAULT 1,
+                expires_at VARCHAR(64),
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS monetization_plans (
+                id VARCHAR(64) PRIMARY KEY,
+                name VARCHAR(128) NOT NULL,
+                price_inr DOUBLE PRECISION NOT NULL,
+                virtual_cash DOUBLE PRECISION NOT NULL,
+                duration_days INTEGER NOT NULL DEFAULT 30,
+                max_leverage INTEGER NOT NULL DEFAULT 20,
+                badge VARCHAR(64),
+                description TEXT,
+                features TEXT,
+                is_active INTEGER DEFAULT 1,
+                display_order INTEGER DEFAULT 0,
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id SERIAL PRIMARY KEY,
+                admin_id INTEGER NOT NULL,
+                admin_email VARCHAR(255) NOT NULL,
+                action VARCHAR(64) NOT NULL,
+                target_type VARCHAR(64) NOT NULL,
+                target_id VARCHAR(128),
+                details TEXT,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """)
 
@@ -299,6 +355,8 @@ def init_db():
                 plan_name TEXT DEFAULT 'Free Basic',
                 plan_expires_at TEXT,
                 max_leverage INTEGER DEFAULT 2,
+                is_banned INTEGER DEFAULT 0,
+                ban_reason TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """)
@@ -357,6 +415,73 @@ def init_db():
             );
             """)
 
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_announcements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message TEXT NOT NULL,
+                announcement_type TEXT DEFAULT 'info',
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_leverage_overrides (
+                symbol TEXT PRIMARY KEY,
+                max_leverage REAL NOT NULL DEFAULT 20.0,
+                margin_rate REAL DEFAULT 1.0,
+                is_trading_disabled INTEGER DEFAULT 0,
+                notes TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS coupons (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE NOT NULL COLLATE NOCASE,
+                discount_percent REAL DEFAULT 0.0,
+                discount_amount_inr REAL DEFAULT 0.0,
+                max_uses INTEGER DEFAULT 100,
+                used_count INTEGER DEFAULT 0,
+                plan_id TEXT,
+                is_active INTEGER DEFAULT 1,
+                expires_at TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS monetization_plans (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                price_inr REAL NOT NULL,
+                virtual_cash REAL NOT NULL,
+                duration_days INTEGER NOT NULL DEFAULT 30,
+                max_leverage INTEGER NOT NULL DEFAULT 20,
+                badge TEXT,
+                description TEXT,
+                features TEXT,
+                is_active INTEGER DEFAULT 1,
+                display_order INTEGER DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS admin_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                admin_id INTEGER NOT NULL,
+                admin_email TEXT NOT NULL,
+                action TEXT NOT NULL,
+                target_type TEXT NOT NULL,
+                target_id TEXT,
+                details TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """)
+
         # Safe column migrations for existing databases (Postgres and SQLite)
         for tbl, col, col_def in [
             ("users", "is_admin", "INTEGER DEFAULT 0"),
@@ -364,6 +489,8 @@ def init_db():
             ("users", "plan_name", "VARCHAR(128) DEFAULT 'Free Basic'" if IS_POSTGRES else "TEXT DEFAULT 'Free Basic'"),
             ("users", "plan_expires_at", "VARCHAR(64)" if IS_POSTGRES else "TEXT"),
             ("users", "max_leverage", "INTEGER DEFAULT 2"),
+            ("users", "is_banned", "INTEGER DEFAULT 0"),
+            ("users", "ban_reason", "TEXT"),
             ("positions", "leverage", "DOUBLE PRECISION DEFAULT 1.0" if IS_POSTGRES else "REAL DEFAULT 1.0"),
             ("positions", "expiry_date", "VARCHAR(32)" if IS_POSTGRES else "TEXT"),
             ("orders", "leverage", "DOUBLE PRECISION DEFAULT 1.0" if IS_POSTGRES else "REAL DEFAULT 1.0"),
@@ -379,6 +506,36 @@ def init_db():
                 cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN IF NOT EXISTS {col} {col_def}" if IS_POSTGRES else f"ALTER TABLE {tbl} ADD COLUMN {col} {col_def}")
             except Exception:
                 pass
+
+        # Seed initial Monetization Plans if table empty
+        try:
+            cursor.execute("SELECT COUNT(*) as cnt FROM monetization_plans")
+            row = cursor.fetchone()
+            if not row or row["cnt"] == 0:
+                initial_plans = [
+                    ("reset_10k", "Starter Trader ($10k)", 199.0, 10000.0, 30, 20, "30 DAYS", "Restore or start account with $10,000.00 capital valid for 30 days.", "$10,000.00 Virtual Capital Balance\n30 Days Trading Access Validity\nFull 1x–20x Futures & Margin leverage\nVerified UPI Bank Confirmation", 1, 1),
+                    ("tier_20k", "Pro Trader ($20k)", 399.0, 20000.0, 60, 20, "60 DAYS", "$20,000.00 expanded capital for swing trading valid for 60 days.", "$20,000.00 Pro Virtual Capital\n60 Days Trading Access Validity\nFull 1x–20x Multiplier leverage\nDetailed 1-Year P&L Statement Export", 1, 2),
+                    ("tier_25k", "Elite Master ($25k)", 999.0, 25000.0, 180, 20, "180 DAYS • BEST VALUE", "$25,000.00 institutional capital valid for 180 days (6 months).", "$25,000.00 Institutional Virtual Capital\n180 Days (6 Months) Extended Validity\nPriority Verification & VIP Badge\nFull 1x–20x Futures & Margin leverage", 1, 3),
+                ]
+                for pid, pname, price, cash, days, lev, badge, desc, feats, act, ordr in initial_plans:
+                    cursor.execute("""
+                        INSERT INTO monetization_plans (id, name, price_inr, virtual_cash, duration_days, max_leverage, badge, description, features, is_active, display_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (pid, pname, price, cash, days, lev, badge, desc, feats, act, ordr))
+        except Exception:
+            pass
+
+        # Seed initial demo coupon if empty
+        try:
+            cursor.execute("SELECT COUNT(*) as cnt FROM coupons")
+            c_row = cursor.fetchone()
+            if not c_row or c_row["cnt"] == 0:
+                cursor.execute("""
+                    INSERT INTO coupons (code, discount_percent, max_uses, used_count, is_active)
+                    VALUES (?, ?, ?, 0, 1)
+                """, ("WELCOME20", 20.0, 500))
+        except Exception:
+            pass
 
         if not IS_POSTGRES:
 

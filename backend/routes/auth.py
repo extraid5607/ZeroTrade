@@ -90,6 +90,9 @@ def format_user_and_check_expiry(user_row: dict, conn=None) -> dict:
     if is_admin:
         max_leverage = 20
 
+    is_banned = bool(user_row.get("is_banned", 0) == 1)
+    ban_reason = user_row.get("ban_reason") or ""
+
     res = dict(user_row)
     res.update({
         "id": user_row["id"],
@@ -106,7 +109,11 @@ def format_user_and_check_expiry(user_row: dict, conn=None) -> dict:
         "plan_expires_at": plan_expires_at,
         "isPaidPlan": is_paid,
         "maxLeverage": max_leverage,
-        "max_leverage": max_leverage
+        "max_leverage": max_leverage,
+        "isBanned": is_banned,
+        "is_banned": 1 if is_banned else 0,
+        "banReason": ban_reason,
+        "ban_reason": ban_reason
     })
     return res
 
@@ -130,11 +137,11 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, created_at FROM users WHERE id = ?", (user_id,))
+        cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason, created_at FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
 
         if not user and email:
-            cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, created_at FROM users WHERE email = ?", (email,))
+            cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason, created_at FROM users WHERE email = ?", (email,))
             user = cursor.fetchone()
 
         if not user:
