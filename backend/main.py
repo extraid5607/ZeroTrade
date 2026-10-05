@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse
 import asyncio
 from backend.database import init_db, get_db
 from backend.services.data_hub import data_hub
-from backend.routes import auth, markets, trading, leaderboard, billing
+from backend.routes import auth, markets, trading, leaderboard, billing, admin
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("zerotrade.main")
@@ -106,6 +106,7 @@ app.include_router(markets.router)
 app.include_router(trading.router)
 app.include_router(leaderboard.router)
 app.include_router(billing.router)
+app.include_router(admin.router)
 
 
 @app.get("/health")
