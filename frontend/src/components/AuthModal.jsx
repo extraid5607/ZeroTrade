@@ -113,7 +113,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             disabled={loading}
             className="w-full py-2.5 rounded-lg text-xs sm:text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-500/20 transition-all active:scale-98 cursor-pointer"
           >
-            {loading ? 'Authenticating...' : (isSignUp ? 'Open Free Account ($10,000 Cash)' : 'Sign In to Account')}
+            {loading ? 'Authenticating...' : (isSignUp ? 'Open Free Account ($2,000 Cash)' : 'Sign In to Account')}
           </button>
         </form>
 
@@ -137,7 +137,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 onClick={() => { setIsSignUp(true); setError(null); }}
                 className="text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer"
               >
-                Create Account (Free $10,000)
+                Create Account (Free $2,000)
               </button>
             </span>
           )}

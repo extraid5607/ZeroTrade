@@ -33,8 +33,8 @@ export default function AccountView({
   onOpenAdminModal
 }) {
   const [accountSubTab, setAccountSubTab] = useState('overview'); // 'overview' | 'pnl_report'
-  const cash = Number(portfolio?.cash ?? 10000);
-  const totalEquity = Number(portfolio?.totalEquity ?? 10000);
+  const cash = Number(portfolio?.cash ?? (user?.virtualCash ?? 2000));
+  const totalEquity = Number(portfolio?.totalEquity ?? (user?.virtualCash ?? 2000));
   const marketVal = Number(portfolio?.marketValue ?? 0);
   const netPnl = Number(portfolio?.netPnl ?? 0);
   const netReturnPct = Number(portfolio?.netReturnPercent ?? 0);
@@ -124,12 +124,19 @@ export default function AccountView({
                   <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
                     {user ? (user.displayName || user.email.split('@')[0]) : 'ZeroBoss Trader'}
                   </h2>
-                  <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
-                    Practice Account
-                  </span>
+                  {user?.isPaidPlan || user?.isAdmin ? (
+                    <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 flex items-center gap-1">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>{user.planName || 'Pro Plan'} (20x Lev)</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] uppercase font-medium px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-900/50">
+                      Free Basic (2x Lev)
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs text-gray-400 font-normal mt-0.5">
-                  Client ID: {user ? `ZT-${user.id.toString().padStart(6, '0')}` : 'ZT-GUEST-001'} &bull; Paper Trading Desk
+                  Client ID: {user ? `ZT-${user.id.toString().padStart(6, '0')}` : 'ZT-GUEST-001'} &bull; {user?.isPaidPlan && user?.planExpiresAt ? `Active until ${new Date(user.planExpiresAt).toLocaleDateString()}` : '$2,000 Starting Desk'}
                 </div>
               </div>
             </div>
@@ -445,7 +452,7 @@ export default function AccountView({
                       1. Zero Financial Risk &amp; Virtual Currency
                     </h4>
                     <p>
-                      ZeroVega does NOT process real market exchange orders or hold real securities. All account starting balances ($10,000.00 default virtual cash) are simulated practice tokens with zero real-world monetary value.
+                      ZeroVega does NOT process real market exchange orders or hold real securities. All account starting balances ($2,000.00 default virtual cash) are simulated practice tokens with zero real-world monetary value.
                     </p>
                   </div>
 

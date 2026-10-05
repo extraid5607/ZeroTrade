@@ -264,12 +264,24 @@ def approve_payment_order(
             return {"success": True, "message": "Order is already approved and completed."}
 
         matched_plan = next((p for p in MONETIZATION_PLANS if p["id"] == order["plan_id"]), None)
-        target_cash = matched_plan["virtualCash"] if matched_plan else 10000.0
+        target_cash = matched_plan["virtualCash"] if matched_plan else (
+            25000.0 if "25k" in order["plan_id"] else (20000.0 if "20k" in order["plan_id"] else 10000.0)
+        )
+        duration_days = matched_plan.get("durationDays", 30) if matched_plan else 30
+        plan_name = matched_plan["name"] if matched_plan else order["plan_name"]
+
+        from datetime import datetime, timezone, timedelta
+        expires_at = datetime.now(timezone.utc) + timedelta(days=duration_days)
+        expires_at_str = expires_at.strftime("%Y-%m-%d %H:%M:%S%z")
 
         user_id = order["user_id"]
 
-        # 1. Update user virtual cash
-        cursor.execute("UPDATE users SET virtual_cash = ? WHERE id = ?", (target_cash, user_id))
+        # 1. Update user virtual cash, plan, expiration, and 20x leverage
+        cursor.execute("""
+            UPDATE users 
+            SET virtual_cash = ?, plan_id = ?, plan_name = ?, plan_expires_at = ?, max_leverage = 20 
+            WHERE id = ?
+        """, (target_cash, order["plan_id"], plan_name, expires_at_str, user_id))
 
         # 2. If it's an account reset, wipe old positions/orders for a fresh restart
         if "reset" in order["plan_id"].lower():

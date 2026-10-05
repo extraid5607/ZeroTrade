@@ -37,6 +37,15 @@ def place_order(req: PlaceOrderRequest, user: dict = Depends(get_current_user)):
     otype = req.order_type.strip().upper()
     leverage = max(1.0, min(20.0, float(req.leverage or 1.0)))
 
+    # Enforce maximum leverage based on user's active plan
+    max_allowed = float(user.get("maxLeverage") or user.get("max_leverage") or 2.0)
+    is_admin = bool(user.get("isAdmin") or user.get("is_admin", 0) == 1)
+    if leverage > max_allowed and not is_admin:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {int(max_allowed)}x leverage allowed on Free plan. Upgrade to a paid plan to unlock up to 20x leverage."
+        )
+
     try:
         if otype == "MARKET":
             res = order_engine.execute_market_order(

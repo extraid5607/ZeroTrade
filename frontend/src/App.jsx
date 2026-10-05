@@ -705,6 +705,7 @@ export default function App() {
         portfolio={portfolio}
         user={user}
         onOpenAuth={openAuth}
+        onOpenBillingModal={openBillingModal}
         onOrderPlaced={(orderData) => {
           if (orderData?.remainingCash !== undefined) {
             setPortfolio(prev => prev ? { ...prev, cash: orderData.remainingCash } : prev);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ArrowUpRight, ArrowDownRight, ShieldCheck, Info, Check, Plus, Minus, Zap, AlertTriangle } from 'lucide-react';
+import { X, ArrowUpRight, ArrowDownRight, ShieldCheck, Info, Check, Plus, Minus, Zap, AlertTriangle, Lock, Sparkles } from 'lucide-react';
 import { BorderBeam } from './magicui/BorderBeam';
 
 const LEVERAGE_OPTIONS = [1, 2, 5, 10, 20];
@@ -13,6 +13,7 @@ export default function OrderModal({
   portfolio,
   user = null,
   onOpenAuth = null,
+  onOpenBillingModal = null,
   onOrderPlaced,
   onShowToast
 }) {
@@ -261,36 +262,82 @@ export default function OrderModal({
           
           {/* Futures Leverage Selector (1x up to 20x) */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Zap className="w-3.5 h-3.5 text-amber-500" />
-                <span>Futures Leverage</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
-                  Up to 20x
-                </span>
-              </label>
-              <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 tabular-nums">
-                {leverage}x Multiplier
-              </span>
-            </div>
-            <div className="grid grid-cols-5 gap-1.5">
-              {LEVERAGE_OPTIONS.map((lev) => (
-                <button
-                  key={lev}
-                  type="button"
-                  onClick={() => setLeverage(lev)}
-                  className={`py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                    leverage === lev
-                      ? isBuy
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-sm ring-1 ring-blue-500'
-                        : 'bg-orange-600 border-orange-600 text-white shadow-sm ring-1 ring-orange-500'
-                      : 'border-gray-200 dark:border-surface-darkBorder bg-gray-50 dark:bg-surface-darkCard text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-surface-darkHover'
-                  }`}
-                >
-                  {lev}x
-                </button>
-              ))}
-            </div>
+            {(() => {
+              const isPaidUser = Boolean(user?.isPaidPlan || user?.isAdmin || user?.is_admin === 1);
+              const maxAllowedLeverage = isPaidUser ? 20 : (Number(user?.maxLeverage) || 2);
+
+              return (
+                <>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <Zap className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Futures Leverage</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                        isPaidUser 
+                          ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25'
+                          : 'bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25'
+                      }`}>
+                        {isPaidUser ? 'Up to 20x (PRO)' : 'Max 2x (Free)'}
+                      </span>
+                    </label>
+                    <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 tabular-nums">
+                      {leverage}x Multiplier
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {LEVERAGE_OPTIONS.map((lev) => {
+                      const isLocked = lev > maxAllowedLeverage;
+                      return (
+                        <button
+                          key={lev}
+                          type="button"
+                          onClick={() => {
+                            if (isLocked) {
+                              setError(`20x Leverage is a Pro feature! Free plan is capped at 2x leverage. Upgrade to unlock 5x, 10x & 20x leverage.`);
+                              onOpenBillingModal?.('reset_10k');
+                              return;
+                            }
+                            setLeverage(lev);
+                            setError(null);
+                          }}
+                          className={`relative py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
+                            leverage === lev
+                              ? isBuy
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-sm ring-1 ring-blue-500'
+                                : 'bg-orange-600 border-orange-600 text-white shadow-sm ring-1 ring-orange-500'
+                              : isLocked
+                              ? 'border-gray-200/80 dark:border-surface-darkBorder/60 bg-gray-100/70 dark:bg-surface-darkCard/40 text-gray-400 dark:text-gray-500 hover:border-amber-400'
+                              : 'border-gray-200 dark:border-surface-darkBorder bg-gray-50 dark:bg-surface-darkCard text-gray-700 dark:text-gray-300 hover:border-gray-300 dark:hover:border-surface-darkHover'
+                          }`}
+                          title={isLocked ? "Upgrade Plan to unlock 20x Leverage" : `${lev}x Leverage`}
+                        >
+                          <span className="flex items-center justify-center gap-0.5">
+                            <span>{lev}x</span>
+                            {isLocked && <Lock className="w-2.5 h-2.5 text-amber-500 shrink-0" />}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {!isPaidUser && (
+                    <div 
+                      onClick={() => onOpenBillingModal?.('reset_10k')}
+                      className="mt-1.5 p-2 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between cursor-pointer hover:bg-amber-500/15 transition-colors"
+                    >
+                      <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-300">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                        <span>Free Plan: <strong>2x Max Leverage</strong>. Upgrade to unlock <strong>20x</strong>!</span>
+                      </div>
+                      <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 underline">
+                        Upgrade
+                      </span>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
 
           {/* Product Type Tabs: Intraday (MIS) vs Longterm (CNC) */}

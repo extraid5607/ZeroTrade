@@ -182,8 +182,12 @@ def init_db():
                 email VARCHAR(255) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 display_name VARCHAR(255) NOT NULL,
-                virtual_cash DOUBLE PRECISION NOT NULL DEFAULT 10000.00,
+                virtual_cash DOUBLE PRECISION NOT NULL DEFAULT 2000.00,
                 is_admin INTEGER DEFAULT 0,
+                plan_id VARCHAR(64) DEFAULT 'free',
+                plan_name VARCHAR(128) DEFAULT 'Free Basic',
+                plan_expires_at VARCHAR(64),
+                max_leverage INTEGER DEFAULT 2,
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
             """)
@@ -289,8 +293,12 @@ def init_db():
                 email TEXT UNIQUE NOT NULL COLLATE NOCASE,
                 password_hash TEXT NOT NULL,
                 display_name TEXT NOT NULL,
-                virtual_cash REAL NOT NULL DEFAULT 10000.00,
+                virtual_cash REAL NOT NULL DEFAULT 2000.00,
                 is_admin INTEGER DEFAULT 0,
+                plan_id TEXT DEFAULT 'free',
+                plan_name TEXT DEFAULT 'Free Basic',
+                plan_expires_at TEXT,
+                max_leverage INTEGER DEFAULT 2,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
             """)
@@ -352,6 +360,10 @@ def init_db():
         # Safe column migrations for existing databases (Postgres and SQLite)
         for tbl, col, col_def in [
             ("users", "is_admin", "INTEGER DEFAULT 0"),
+            ("users", "plan_id", "VARCHAR(64) DEFAULT 'free'" if IS_POSTGRES else "TEXT DEFAULT 'free'"),
+            ("users", "plan_name", "VARCHAR(128) DEFAULT 'Free Basic'" if IS_POSTGRES else "TEXT DEFAULT 'Free Basic'"),
+            ("users", "plan_expires_at", "VARCHAR(64)" if IS_POSTGRES else "TEXT"),
+            ("users", "max_leverage", "INTEGER DEFAULT 2"),
             ("positions", "leverage", "DOUBLE PRECISION DEFAULT 1.0" if IS_POSTGRES else "REAL DEFAULT 1.0"),
             ("positions", "expiry_date", "VARCHAR(32)" if IS_POSTGRES else "TEXT"),
             ("orders", "leverage", "DOUBLE PRECISION DEFAULT 1.0" if IS_POSTGRES else "REAL DEFAULT 1.0"),
