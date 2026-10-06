@@ -18,18 +18,29 @@ from backend.services.data_hub import data_hub
 logger = logging.getLogger("zerotrade.order_engine")
 
 
-def get_us_eastern_today_start_utc() -> str:
-    """Return the UTC timestamp string corresponding to 00:00:00 US Eastern Time today."""
+def get_ist_today_session_start_utc() -> str:
+    """
+    Return the UTC timestamp string corresponding to 5:00 AM IST of the active trading day.
+    Closed positions remain visible in the Portfolio tab until 5:00 AM IST next morning,
+    after which they reset from the active view while remaining permanently archived in the 1-Year P&L Statement.
+    """
     try:
         import zoneinfo
-        us_tz = zoneinfo.ZoneInfo("America/New_York")
+        ist_tz = zoneinfo.ZoneInfo("Asia/Kolkata")
     except Exception:
-        # Fallback to UTC-4 (Eastern Daylight Time)
-        us_tz = timezone(timedelta(hours=-4))
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
 
-    now_et = datetime.now(us_tz)
-    today_start_et = now_et.replace(hour=0, minute=0, second=0, microsecond=0)
-    return today_start_et.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    now_ist = datetime.now(ist_tz)
+    # If before 5:00 AM IST, the session started yesterday at 5:00 AM IST
+    if now_ist.hour < 5:
+        session_date = (now_ist - timedelta(days=1)).date()
+    else:
+        session_date = now_ist.date()
+
+    session_start_ist = datetime.combine(session_date, datetime.min.time()).replace(
+        hour=5, minute=0, second=0, microsecond=0, tzinfo=ist_tz
+    )
+    return session_start_ist.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 def is_option_asset(symbol: str, asset_class: str = None) -> bool:
@@ -955,8 +966,8 @@ class OrderEngine:
                     "isClosed": False
                 })
 
-            # 2. Closed positions executed TODAY (US Eastern Time) - Zerodha Kite Signature
-            today_start_utc = get_us_eastern_today_start_utc()
+            # 2. Closed positions executed in current session (Retained until 5:00 AM IST daily reset)
+            today_start_utc = get_ist_today_session_start_utc()
             cursor.execute("""
                 SELECT symbol, asset_class, side,
                        SUM(quantity) as closed_qty,
