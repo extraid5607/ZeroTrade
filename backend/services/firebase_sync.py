@@ -254,6 +254,36 @@ def sync_payment_order(payment_data: Dict[str, Any]):
     _run_bg(_task)
 
 
+def sync_monetization_plan(plan_data: Dict[str, Any]):
+    """Backup dynamic monetization plan to Firebase Firestore."""
+    def _task():
+        db = get_firestore_client()
+        if not db:
+            return
+        try:
+            pid = str(plan_data.get("id"))
+            if not pid:
+                return
+            db.collection("monetization_plans").document(pid).set(plan_data, merge=True)
+        except Exception as e:
+            logger.debug(f"Firebase sync_monetization_plan error: {e}")
+    _run_bg(_task)
+
+
+def delete_monetization_plan(plan_id: str):
+    """Remove deleted monetization plan from Firestore."""
+    def _task():
+        db = get_firestore_client()
+        if not db:
+            return
+        try:
+            db.collection("monetization_plans").document(plan_id).delete()
+        except Exception as e:
+            logger.debug(f"Firebase delete_monetization_plan error: {e}")
+    _run_bg(_task)
+
+
+
 # =========================================================================
 # STARTUP RESTORATION (Hydrates local SQLite from Firestore on Boot)
 # =========================================================================
@@ -385,7 +415,43 @@ def restore_from_firebase():
                         data.get("pnl_percent", 0.0), data.get("timestamp")
                     ))
 
-            logger.info(f"Firebase restore complete: {len(user_docs)} users, {len(pos_docs)} positions, {len(payment_docs)} payments, {len(order_docs)} orders, {len(tx_docs)} transactions synced.")
+            # 6. Restore Monetization Plans
+            plan_docs = list(db.collection("monetization_plans").stream())
+            for p in plan_docs:
+                data = p.to_dict()
+                pid = data.get("id")
+                if pid:
+                    feats = data.get("features")
+                    if isinstance(feats, list):
+                        feats_str = "\n".join(feats)
+                    else:
+                        feats_str = str(feats or "")
+                    cursor.execute("""
+                        INSERT INTO monetization_plans (id, name, price_inr, virtual_cash, duration_days, max_leverage, badge, description, features, is_active, display_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET
+                            name = excluded.name,
+                            price_inr = excluded.price_inr,
+                            virtual_cash = excluded.virtual_cash,
+                            duration_days = excluded.duration_days,
+                            max_leverage = excluded.max_leverage,
+                            badge = excluded.badge,
+                            description = excluded.description,
+                            features = excluded.features,
+                            is_active = excluded.is_active,
+                            display_order = excluded.display_order
+                    """, (
+                        pid, data.get("name", "Custom Plan"), float(data.get("price_inr") or data.get("priceInr") or 0.0),
+                        float(data.get("virtual_cash") or data.get("virtualCash") or 2000.0),
+                        int(data.get("duration_days") or data.get("durationDays") or 30),
+                        int(data.get("max_leverage") or data.get("maxLeverage") or 20),
+                        data.get("badge", ""), data.get("description", ""), feats_str,
+                        1 if data.get("is_active", True) else 0,
+                        int(data.get("display_order") or data.get("displayOrder") or 0)
+                    ))
+
+            logger.info(f"Firebase restore complete: {len(user_docs)} users, {len(pos_docs)} positions, {len(payment_docs)} payments, {len(order_docs)} orders, {len(tx_docs)} transactions, {len(plan_docs)} plans synced.")
+
 
     except Exception as e:
         logger.warning(f"Failed to restore from Firebase Firestore: {e}")

@@ -984,6 +984,25 @@ def create_or_update_plan(
 
         log_admin_action(admin_user, "UPDATE_PLAN", "PLAN", pid, f"Configured plan {req.name} (₹{price_inr}, {duration_days}d, ${virtual_cash:,.2f})", conn=conn)
 
+        # Sync to Firestore
+        try:
+            from backend.services.firebase_sync import sync_monetization_plan
+            sync_monetization_plan({
+                "id": pid,
+                "name": req.name,
+                "price_inr": price_inr,
+                "virtual_cash": virtual_cash,
+                "duration_days": duration_days,
+                "max_leverage": max_leverage,
+                "badge": req.badge or "",
+                "description": req.description or "",
+                "features": req.features or [],
+                "is_active": bool(is_act == 1),
+                "display_order": display_order_val
+            })
+        except Exception:
+            pass
+
         return {
             "success": True,
             "planId": pid,
@@ -1002,7 +1021,13 @@ def delete_plan(
         cursor = conn.cursor()
         cursor.execute("DELETE FROM monetization_plans WHERE id = ?", (pid,))
         log_admin_action(admin_user, "DELETE_PLAN", "PLAN", pid, f"Deleted plan {pid}", conn=conn)
+        try:
+            from backend.services.firebase_sync import delete_monetization_plan
+            delete_monetization_plan(pid)
+        except Exception:
+            pass
         return {"success": True, "message": f"Plan '{pid}' removed."}
+
 
 
 # =========================================================================
