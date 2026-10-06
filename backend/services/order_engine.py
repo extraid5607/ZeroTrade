@@ -85,14 +85,19 @@ class OrderEngine:
                 # Sync latest orders for this user to Firestore
                 c.execute("SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 25", (user_id,))
                 for o in c.fetchall():
-                    sync_order(dict(o))
+                    od = dict(o)
+                    od["user_email"] = user_email
+                    sync_order(od)
 
                 # Sync latest transactions for this user to Firestore
                 c.execute("SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 25", (user_id,))
                 for t in c.fetchall():
-                    sync_transaction(dict(t))
+                    td = dict(t)
+                    td["user_email"] = user_email
+                    sync_transaction(td)
         except Exception:
             pass
+
 
     def execute_market_order(
         self,

@@ -305,6 +305,7 @@ def restore_from_firebase():
     """
     On cold-boot or Render restart, restore all users, positions, orders,
     transactions, and payments from Firebase Firestore into SQLite.
+    Maps and aligns user_ids safely so foreign key constraints never fail.
     """
     db = get_firestore_client()
     if not db:
@@ -320,81 +321,124 @@ def restore_from_firebase():
             # 1. Restore Users
             user_docs = list(db.collection("users").stream())
             for u in user_docs:
-                data = u.to_dict()
-                email = (data.get("email") or "").lower().strip()
-                # Skip and delete legacy mock/demo accounts
-                if not email or (email != "zerobossai@gmail.com" and any(m in email for m in ["demo@", "apex_", "crypto_whale", "quant_", "fx_", "steady_", "tester_", "trader_", "payer_", "hazz@", "test_", "pola@", "harrysaido66@"])):
-                    try:
-                        u.reference.delete()
-                    except Exception:
-                        pass
-                    continue
+                try:
+                    data = u.to_dict()
+                    email = (data.get("email") or "").lower().strip()
+                    # Skip and delete legacy mock/demo accounts
+                    if not email or (email != "zerobossai@gmail.com" and any(m in email for m in ["demo@", "apex_", "crypto_whale", "quant_", "fx_", "steady_", "tester_", "trader_", "payer_", "hazz@", "test_", "pola@", "harrysaido66@"])):
+                        try:
+                            u.reference.delete()
+                        except Exception:
+                            pass
+                        continue
 
-                cursor.execute("""
-                    INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(email) DO UPDATE SET
-                        virtual_cash = excluded.virtual_cash,
-                        display_name = excluded.display_name,
-                        is_admin = excluded.is_admin,
-                        plan_id = excluded.plan_id,
-                        plan_name = excluded.plan_name,
-                        plan_expires_at = excluded.plan_expires_at,
-                        max_leverage = excluded.max_leverage,
-                        is_banned = excluded.is_banned,
-                        ban_reason = excluded.ban_reason
-                """, (
-                    data["id"], data["email"], data.get("password_hash", ""),
-                    data["display_name"], data["virtual_cash"], data.get("is_admin", 0),
-                    data.get("plan_id", "free"), data.get("plan_name", "Free Basic"),
-                    data.get("plan_expires_at"), data.get("max_leverage", 2.0),
-                    data.get("is_banned", 0), data.get("ban_reason", "")
-                ))
+                    cursor.execute("""
+                        INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(email) DO UPDATE SET
+                            virtual_cash = excluded.virtual_cash,
+                            display_name = excluded.display_name,
+                            is_admin = excluded.is_admin,
+                            plan_id = excluded.plan_id,
+                            plan_name = excluded.plan_name,
+                            plan_expires_at = excluded.plan_expires_at,
+                            max_leverage = excluded.max_leverage,
+                            is_banned = excluded.is_banned,
+                            ban_reason = excluded.ban_reason
+                    """, (
+                        data.get("id"), data["email"], data.get("password_hash", ""),
+                        data["display_name"], float(data.get("virtual_cash", 2000.0)), int(data.get("is_admin", 0)),
+                        data.get("plan_id", "free"), data.get("plan_name", "Free Basic"),
+                        data.get("plan_expires_at"), float(data.get("max_leverage", 2.0)),
+                        int(data.get("is_banned", 0)), data.get("ban_reason", "")
+                    ))
+                except Exception as ue:
+                    logger.debug(f"User restore error for {u.id}: {ue}")
+
+            # Build in-memory map of valid users in SQLite
+            cursor.execute("SELECT id, email FROM users")
+            all_users = cursor.fetchall()
+            valid_user_ids = {u["id"] for u in all_users}
+            email_to_user_id = {u["email"].lower().strip(): u["id"] for u in all_users}
+
+            def _resolve_uid(data: dict) -> Optional[int]:
+                uemail = (data.get("user_email") or data.get("email") or "").lower().strip()
+                if uemail in email_to_user_id:
+                    return email_to_user_id[uemail]
+                raw_uid = data.get("user_id")
+                if raw_uid is not None:
+                    try:
+                        int_uid = int(raw_uid)
+                        if int_uid in valid_user_ids:
+                            return int_uid
+                    except (ValueError, TypeError):
+                        pass
+                return None
 
             # 2. Restore Positions
             pos_docs = list(db.collection("positions").stream())
             for p in pos_docs:
-                data = p.to_dict()
-                qty = float(data.get("quantity") or 0.0)
-                if abs(qty) <= 1e-7:
-                    continue
-                cursor.execute("""
-                    INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage, expiry_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(user_id, symbol) DO UPDATE SET
-                        quantity = excluded.quantity,
-                        avg_entry_price = excluded.avg_entry_price,
-                        leverage = excluded.leverage,
-                        expiry_date = excluded.expiry_date
-                """, (
-                    data["user_id"], data["symbol"], data.get("asset_class", "stock"),
-                    qty, float(data.get("avg_entry_price", 0.0)), float(data.get("leverage", 1.0)),
-                    data.get("expiry_date")
-                ))
+                try:
+                    data = p.to_dict()
+                    qty = float(data.get("quantity") or 0.0)
+                    if abs(qty) <= 1e-7:
+                        continue
+                    sym = data.get("symbol")
+                    if not sym:
+                        continue
+                    resolved_uid = _resolve_uid(data)
+                    if not resolved_uid:
+                        continue
+                    cursor.execute("""
+                        INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage, expiry_date)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(user_id, symbol) DO UPDATE SET
+                            quantity = excluded.quantity,
+                            avg_entry_price = excluded.avg_entry_price,
+                            leverage = excluded.leverage,
+                            expiry_date = excluded.expiry_date
+                    """, (
+                        resolved_uid, sym, data.get("asset_class", "stock"),
+                        qty, float(data.get("avg_entry_price", 0.0)), float(data.get("leverage", 1.0)),
+                        data.get("expiry_date")
+                    ))
+                except Exception as pe:
+                    logger.debug(f"Position restore error for {p.id}: {pe}")
 
             # 3. Restore Payment Orders
             payment_docs = list(db.collection("payment_orders").stream())
             for pay in payment_docs:
-                data = pay.to_dict()
-                cursor.execute("""
-                    INSERT INTO payment_orders (id, user_id, plan_id, plan_name, amount_inr, virtual_cash_granted, upi_id, utr_ref, status, admin_notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        status = excluded.status,
-                        virtual_cash_granted = excluded.virtual_cash_granted,
-                        admin_notes = excluded.admin_notes
-                """, (
-                    data.get("id"), data.get("user_id"), data.get("plan_id"),
-                    data.get("plan_name"), data.get("amount_inr"), data.get("virtual_cash_granted", 0.0),
-                    data.get("upi_id"), data.get("utr_ref"), data.get("status", "pending"), data.get("admin_notes")
-                ))
+                try:
+                    data = pay.to_dict()
+                    resolved_uid = _resolve_uid(data)
+                    if not resolved_uid:
+                        continue
+                    cursor.execute("""
+                        INSERT INTO payment_orders (id, user_id, plan_id, plan_name, amount_inr, virtual_cash_granted, upi_id, utr_ref, status, admin_notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(id) DO UPDATE SET
+                            status = excluded.status,
+                            virtual_cash_granted = excluded.virtual_cash_granted,
+                            admin_notes = excluded.admin_notes
+                    """, (
+                        data.get("id"), resolved_uid, data.get("plan_id"),
+                        data.get("plan_name"), float(data.get("amount_inr", 0.0)), float(data.get("virtual_cash_granted", 0.0)),
+                        data.get("upi_id"), data.get("utr_ref"), data.get("status", "pending"), data.get("admin_notes")
+                    ))
+                except Exception as pye:
+                    logger.debug(f"Payment order restore error for {pay.id}: {pye}")
 
             # 4. Restore Orders
             order_docs = list(db.collection("orders").stream())
             for o in order_docs:
-                data = o.to_dict()
-                oid = data.get("id") or data.get("orderId")
-                if oid:
+                try:
+                    data = o.to_dict()
+                    oid = data.get("id") or data.get("orderId")
+                    if not oid:
+                        continue
+                    resolved_uid = _resolve_uid(data)
+                    if not resolved_uid:
+                        continue
                     cursor.execute("""
                         INSERT INTO orders (id, user_id, symbol, asset_class, side, order_type, quantity, limit_price, leverage, status, filled_price, filled_at, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -403,68 +447,81 @@ def restore_from_firebase():
                             filled_price = excluded.filled_price,
                             filled_at = excluded.filled_at
                     """, (
-                        oid, data.get("user_id"), data.get("symbol"), data.get("asset_class", "stock"),
-                        data.get("side"), data.get("order_type", "MARKET"), data.get("quantity"), data.get("limit_price"),
-                        data.get("leverage", 1.0), data.get("status", "FILLED"), data.get("filled_price"),
+                        oid, resolved_uid, data.get("symbol"), data.get("asset_class", "stock"),
+                        data.get("side"), data.get("order_type", "MARKET"), float(data.get("quantity", 1.0)), data.get("limit_price"),
+                        float(data.get("leverage", 1.0)), data.get("status", "FILLED"), data.get("filled_price"),
                         data.get("filled_at"), data.get("created_at")
                     ))
+                except Exception as oe:
+                    logger.debug(f"Order restore error for {o.id}: {oe}")
 
             # 5. Restore Transactions
             tx_docs = list(db.collection("transactions").stream())
             for t in tx_docs:
-                data = t.to_dict()
-                tid = data.get("id")
-                if tid and str(tid).isdigit():
+                try:
+                    data = t.to_dict()
+                    tid = data.get("id")
+                    if not tid or not str(tid).isdigit():
+                        continue
+                    resolved_uid = _resolve_uid(data)
+                    if not resolved_uid:
+                        continue
                     cursor.execute("""
-                        INSERT INTO transactions (id, user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, timestamp)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT INTO transactions (id, user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close, timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(id) DO UPDATE SET
                             realized_pnl = excluded.realized_pnl,
-                            pnl_percent = excluded.pnl_percent
+                            pnl_percent = excluded.pnl_percent,
+                            is_close = excluded.is_close
                     """, (
-                        int(tid), data.get("user_id"), data.get("order_id"), data.get("symbol"),
-                        data.get("asset_class", "stock"), data.get("side"), data.get("quantity"), data.get("price"),
-                        data.get("entry_price", 0.0), data.get("leverage", 1.0), data.get("realized_pnl", 0.0),
-                        data.get("pnl_percent", 0.0), data.get("timestamp")
+                        int(tid), resolved_uid, data.get("order_id"), data.get("symbol"),
+                        data.get("asset_class", "stock"), data.get("side"), float(data.get("quantity", 1.0)), float(data.get("price", 0.0)),
+                        float(data.get("entry_price", 0.0)), float(data.get("leverage", 1.0)), float(data.get("realized_pnl", 0.0)),
+                        float(data.get("pnl_percent", 0.0)), int(data.get("is_close", 0)), data.get("timestamp")
                     ))
+                except Exception as te:
+                    logger.debug(f"Transaction restore error for {t.id}: {te}")
 
             # 6. Restore Monetization Plans
             plan_docs = list(db.collection("monetization_plans").stream())
             for p in plan_docs:
-                data = p.to_dict()
-                pid = data.get("id")
-                if pid:
-                    feats = data.get("features")
-                    if isinstance(feats, list):
-                        feats_str = "\n".join(feats)
-                    else:
-                        feats_str = str(feats or "")
-                    cursor.execute("""
-                        INSERT INTO monetization_plans (id, name, price_inr, virtual_cash, duration_days, max_leverage, badge, description, features, is_active, display_order)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        ON CONFLICT(id) DO UPDATE SET
-                            name = excluded.name,
-                            price_inr = excluded.price_inr,
-                            virtual_cash = excluded.virtual_cash,
-                            duration_days = excluded.duration_days,
-                            max_leverage = excluded.max_leverage,
-                            badge = excluded.badge,
-                            description = excluded.description,
-                            features = excluded.features,
-                            is_active = excluded.is_active,
-                            display_order = excluded.display_order
-                    """, (
-                        pid, data.get("name", "Custom Plan"), float(data.get("price_inr") or data.get("priceInr") or 0.0),
-                        float(data.get("virtual_cash") or data.get("virtualCash") or 2000.0),
-                        int(data.get("duration_days") or data.get("durationDays") or 30),
-                        int(data.get("max_leverage") or data.get("maxLeverage") or 20),
-                        data.get("badge", ""), data.get("description", ""), feats_str,
-                        1 if data.get("is_active", True) else 0,
-                        int(data.get("display_order") or data.get("displayOrder") or 0)
-                    ))
+                try:
+                    data = p.to_dict()
+                    pid = data.get("id")
+                    if pid:
+                        feats = data.get("features")
+                        if isinstance(feats, list):
+                            feats_str = "\n".join(feats)
+                        else:
+                            feats_str = str(feats or "")
+                        cursor.execute("""
+                            INSERT INTO monetization_plans (id, name, price_inr, virtual_cash, duration_days, max_leverage, badge, description, features, is_active, display_order)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ON CONFLICT(id) DO UPDATE SET
+                                name = excluded.name,
+                                price_inr = excluded.price_inr,
+                                virtual_cash = excluded.virtual_cash,
+                                duration_days = excluded.duration_days,
+                                max_leverage = excluded.max_leverage,
+                                badge = excluded.badge,
+                                description = excluded.description,
+                                features = excluded.features,
+                                is_active = excluded.is_active,
+                                display_order = excluded.display_order
+                        """, (
+                            pid, data.get("name", "Custom Plan"), float(data.get("price_inr") or data.get("priceInr") or 0.0),
+                            float(data.get("virtual_cash") or data.get("virtualCash") or 2000.0),
+                            int(data.get("duration_days") or data.get("durationDays") or 30),
+                            int(data.get("max_leverage") or data.get("maxLeverage") or 20),
+                            data.get("badge", ""), data.get("description", ""), feats_str,
+                            1 if data.get("is_active", True) else 0,
+                            int(data.get("display_order") or data.get("displayOrder") or 0)
+                        ))
+                except Exception as pe:
+                    logger.debug(f"Plan restore error: {pe}")
 
             logger.info(f"Firebase restore complete: {len(user_docs)} users, {len(pos_docs)} positions, {len(payment_docs)} payments, {len(order_docs)} orders, {len(tx_docs)} transactions, {len(plan_docs)} plans synced.")
 
-
     except Exception as e:
         logger.warning(f"Failed to restore from Firebase Firestore: {e}")
+
