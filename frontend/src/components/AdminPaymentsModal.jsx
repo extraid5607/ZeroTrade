@@ -582,20 +582,48 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
   };
 
   // =========================================================================
-  // ACTIONS: Plans Editor
-  // =========================================================================
+  const parseError = (errData, fallback = 'Operation failed') => {
+    if (!errData) return fallback;
+    const detail = errData.detail || errData.message;
+    if (Array.isArray(detail)) {
+      return detail.map(d => d.msg || d.detail || (typeof d === 'object' ? JSON.stringify(d) : String(d))).join(', ');
+    }
+    if (typeof detail === 'object' && detail !== null) {
+      return detail.msg || detail.detail || JSON.stringify(detail);
+    }
+    return detail || fallback;
+  };
 
   const handleSavePlan = async (e) => {
     e.preventDefault();
     if (!editingPlan || !editingPlan.id) return;
     try {
+      const payload = {
+        id: editingPlan.id,
+        name: editingPlan.name,
+        price_inr: Number(editingPlan.priceInr ?? editingPlan.price_inr ?? 0),
+        priceInr: Number(editingPlan.priceInr ?? editingPlan.price_inr ?? 0),
+        virtual_cash: Number(editingPlan.virtualCash ?? editingPlan.virtual_cash ?? 2000),
+        virtualCash: Number(editingPlan.virtualCash ?? editingPlan.virtual_cash ?? 2000),
+        duration_days: Number(editingPlan.durationDays ?? editingPlan.duration_days ?? 30),
+        durationDays: Number(editingPlan.durationDays ?? editingPlan.duration_days ?? 30),
+        max_leverage: Number(editingPlan.maxLeverage ?? editingPlan.max_leverage ?? 20),
+        maxLeverage: Number(editingPlan.maxLeverage ?? editingPlan.max_leverage ?? 20),
+        badge: editingPlan.badge || '',
+        description: editingPlan.description || '',
+        features: Array.isArray(editingPlan.features) ? editingPlan.features : [],
+        is_active: editingPlan.isActive !== undefined ? editingPlan.isActive : true,
+        isActive: editingPlan.isActive !== undefined ? editingPlan.isActive : true,
+        display_order: Number(editingPlan.displayOrder ?? editingPlan.display_order ?? 0),
+        displayOrder: Number(editingPlan.displayOrder ?? editingPlan.display_order ?? 0)
+      };
       const res = await fetch('/api/admin/plans', {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify(editingPlan)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Failed to save plan');
+      if (!res.ok) throw new Error(parseError(data, 'Failed to save plan'));
       showToast(data.message || 'Plan saved!');
       setEditingPlan(null);
       fetchPlans();

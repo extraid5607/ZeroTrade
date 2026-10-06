@@ -79,15 +79,21 @@ class CouponCreateRequest(BaseModel):
 class PlanEditRequest(BaseModel):
     id: str
     name: str
-    price_inr: float
-    virtual_cash: float
-    duration_days: int = 30
-    max_leverage: int = 20
+    price_inr: Optional[float] = None
+    priceInr: Optional[float] = None
+    virtual_cash: Optional[float] = None
+    virtualCash: Optional[float] = None
+    duration_days: Optional[int] = None
+    durationDays: Optional[int] = None
+    max_leverage: Optional[int] = None
+    maxLeverage: Optional[int] = None
     badge: Optional[str] = None
     description: Optional[str] = None
     features: Optional[List[str]] = None
-    is_active: Optional[bool] = True
-    display_order: Optional[int] = 0
+    is_active: Optional[bool] = None
+    isActive: Optional[bool] = None
+    display_order: Optional[int] = None
+    displayOrder: Optional[int] = None
 
 
 # =========================================================================
@@ -947,8 +953,15 @@ def create_or_update_plan(
     if not pid:
         raise HTTPException(status_code=400, detail="Plan ID is required.")
 
+    price_inr = req.price_inr if req.price_inr is not None else (req.priceInr if req.priceInr is not None else 0.0)
+    virtual_cash = req.virtual_cash if req.virtual_cash is not None else (req.virtualCash if req.virtualCash is not None else 2000.0)
+    duration_days = req.duration_days if req.duration_days is not None else (req.durationDays if req.durationDays is not None else 30)
+    max_leverage = req.max_leverage if req.max_leverage is not None else (req.maxLeverage if req.maxLeverage is not None else 20)
+    is_active_val = req.is_active if req.is_active is not None else (req.isActive if req.isActive is not None else True)
+    display_order_val = req.display_order if req.display_order is not None else (req.displayOrder if req.displayOrder is not None else 0)
+
     features_str = "\n".join(req.features) if req.features else ""
-    is_act = 1 if req.is_active else 0
+    is_act = 1 if is_active_val else 0
 
     with get_db() as conn:
         cursor = conn.cursor()
@@ -967,9 +980,9 @@ def create_or_update_plan(
                 is_active = excluded.is_active,
                 display_order = excluded.display_order,
                 updated_at = CURRENT_TIMESTAMP
-        """, (pid, req.name, req.price_inr, req.virtual_cash, req.duration_days, req.max_leverage, req.badge or "", req.description or "", features_str, is_act, req.display_order or 0))
+        """, (pid, req.name, price_inr, virtual_cash, duration_days, max_leverage, req.badge or "", req.description or "", features_str, is_act, display_order_val))
 
-        log_admin_action(admin_user, "UPDATE_PLAN", "PLAN", pid, f"Configured plan {req.name} (₹{req.price_inr}, {req.duration_days}d, ${req.virtual_cash:,.2f})", conn=conn)
+        log_admin_action(admin_user, "UPDATE_PLAN", "PLAN", pid, f"Configured plan {req.name} (₹{price_inr}, {duration_days}d, ${virtual_cash:,.2f})", conn=conn)
 
         return {
             "success": True,
