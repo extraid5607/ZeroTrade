@@ -385,6 +385,44 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
     }
   };
 
+  const handleDeleteUser = async (userId, userEmail) => {
+    if (!window.confirm(`PERMANENT ACTION: Delete user #${userId} (${userEmail}) and wipe all their records permanently?`)) return;
+    setActionLoading(prev => ({ ...prev, [userId]: true }));
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to delete user');
+      showToast(data.message || 'User permanently deleted');
+      setSelectedUserForAction(null);
+      fetchUsers();
+      fetchStats();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [userId]: false }));
+    }
+  };
+
+  const handlePurgeLegacyUsers = async () => {
+    if (!window.confirm('Are you sure you want to purge all old demo/mock accounts from the database? This keeps only Master Admin and genuine Google accounts.')) return;
+    try {
+      const res = await fetch('/api/admin/purge-legacy-users', {
+        method: 'POST',
+        headers: getHeaders()
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Failed to purge accounts');
+      showToast(data.message || 'All old demo accounts purged successfully');
+      fetchUsers();
+      fetchStats();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   // =========================================================================
   // ACTIONS: Payments
   // =========================================================================
@@ -906,6 +944,16 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
                     <Download className="w-3.5 h-3.5" />
                     <span>Export Users CSV</span>
                   </button>
+
+                  {/* Purge Legacy Accounts */}
+                  <button
+                    onClick={handlePurgeLegacyUsers}
+                    className="px-3 py-1.5 rounded-lg border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 text-xs font-bold flex items-center gap-1 transition-colors"
+                    title="Purge all old dummy and non-Google mock accounts"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Purge Old Accounts</span>
+                  </button>
                 </div>
               </div>
 
@@ -1225,15 +1273,28 @@ export default function AdminPaymentsModal({ isOpen, onClose, user }) {
                     </div>
 
                     {/* 4. Wipe / Reset Account */}
-                    <div className="pt-1 flex items-center justify-between">
-                      <span className="text-xs text-gray-400">Emergency Reset</span>
+                    <div className="pt-1 flex items-center justify-between border-t border-gray-100 dark:border-surface-darkBorder">
+                      <span className="text-xs text-gray-400">Portfolio Reset</span>
                       <button
                         onClick={() => handleResetPortfolio(selectedUserForAction.id)}
-                        className="text-xs text-rose-500 hover:underline flex items-center gap-1 font-semibold"
+                        className="text-xs text-amber-500 hover:underline flex items-center gap-1 font-semibold"
                       >
-                        <Trash2 className="w-3.5 h-3.5" /> Wipe Portfolio &amp; Close Open Trades
+                        <Trash2 className="w-3.5 h-3.5" /> Wipe Trades &amp; Reset Cash
                       </button>
                     </div>
+
+                    {/* 5. Permanently Delete User */}
+                    {!selectedUserForAction.isAdmin && selectedUserForAction.email !== 'zerobossai@gmail.com' && (
+                      <div className="pt-2 flex items-center justify-between">
+                        <span className="text-xs text-gray-400">Account Removal</span>
+                        <button
+                          onClick={() => handleDeleteUser(selectedUserForAction.id, selectedUserForAction.email)}
+                          className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1 transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" /> Delete User Permanently
+                        </button>
+                      </div>
+                    )}
 
                   </div>
                 </div>

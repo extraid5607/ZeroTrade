@@ -227,6 +227,15 @@ def restore_from_firebase():
             user_docs = list(db.collection("users").stream())
             for u in user_docs:
                 data = u.to_dict()
+                email = (data.get("email") or "").lower().strip()
+                # Skip and delete legacy mock/demo accounts
+                if not email or (email != "zerobossai@gmail.com" and any(m in email for m in ["demo@", "apex_", "crypto_whale", "quant_", "fx_", "steady_", "tester_", "trader_", "payer_", "hazz@", "test_", "pola@", "harrysaido66@"])):
+                    try:
+                        u.reference.delete()
+                    except Exception:
+                        pass
+                    continue
+
                 cursor.execute("""
                     INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)

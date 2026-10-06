@@ -452,6 +452,89 @@ def admin_reset_user_portfolio(
         }
 
 
+@router.delete("/users/{user_id}")
+def admin_delete_user(
+    user_id: int,
+    admin_user: dict = Depends(require_admin)
+):
+    """Permanently delete a user account and purge all their positions, orders, transactions, and cloud data."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, email FROM users WHERE id = ?", (user_id,))
+        target = cursor.fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        if target["email"] == "zerobossai@gmail.com":
+            raise HTTPException(status_code=400, detail="Cannot delete Master Admin account.")
+
+        cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM payment_orders WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        invalidate_user_cache(user_id)
+
+        try:
+            from backend.services.firebase_sync import get_firestore_client
+            f_db = get_firestore_client()
+            if f_db:
+                f_db.collection("users").document(str(user_id)).delete()
+                for p_doc in f_db.collection("positions").where("user_id", "==", user_id).stream():
+                    p_doc.reference.delete()
+        except Exception as e:
+            logger.debug(f"Firestore delete user cleanup error: {e}")
+
+        log_admin_action(admin_user, "DELETE_USER", "USER", str(user_id), f"Permanently deleted user {target['email']}", conn=conn)
+
+        return {
+            "success": True,
+            "message": f"User #{user_id} ({target['email']}) and all associated records permanently deleted."
+        }
+
+
+@router.post("/purge-legacy-users")
+def admin_purge_legacy_users(admin_user: dict = Depends(require_admin)):
+    """Wipe all old mock/demo accounts, keeping only Master Admin and genuine Google accounts."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM users 
+            WHERE email != 'zerobossai@gmail.com' 
+              AND (
+                  email LIKE '%@zeroboss.trade' 
+                  OR email LIKE '%@example.com' 
+                  OR email LIKE '%@test.com' 
+                  OR email LIKE '%@zerotrade.test' 
+                  OR email IN ('demo@zeroboss.trade', 'pola@gmail.com', 'hazz@gmail.com', 'harrysaido66@gmail.com')
+              )
+        """)
+        cursor.execute("DELETE FROM positions WHERE user_id NOT IN (SELECT id FROM users)")
+        cursor.execute("DELETE FROM orders WHERE user_id NOT IN (SELECT id FROM users)")
+        cursor.execute("DELETE FROM transactions WHERE user_id NOT IN (SELECT id FROM users)")
+        cursor.execute("DELETE FROM payment_orders WHERE user_id NOT IN (SELECT id FROM users)")
+        invalidate_user_cache()
+
+        try:
+            from backend.services.firebase_sync import get_firestore_client
+            f_db = get_firestore_client()
+            if f_db:
+                for doc in f_db.collection("users").stream():
+                    u_data = doc.to_dict()
+                    u_email = (u_data.get("email") or "").lower().strip()
+                    if u_email != "zerobossai@gmail.com" and any(m in u_email for m in ["demo@", "apex_", "crypto_whale", "quant_", "fx_", "steady_", "tester_", "trader_", "payer_", "hazz@", "test_", "pola@", "harrysaido66@"]):
+                        doc.reference.delete()
+        except Exception as e:
+            logger.debug(f"Firestore purge legacy users error: {e}")
+
+        log_admin_action(admin_user, "PURGE_LEGACY_USERS", "SYSTEM", "ALL", "Purged all mock/legacy accounts", conn=conn)
+
+        return {
+            "success": True,
+            "message": "All old mock accounts have been completely purged."
+        }
+
+
 # =========================================================================
 # 3. Live Positions & Force-Close Risk Engine
 # =========================================================================

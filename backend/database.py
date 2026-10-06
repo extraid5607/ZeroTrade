@@ -600,13 +600,22 @@ def init_db():
         except Exception:
             pass
 
-        # Clean up all old mock/demo accounts (Only new Google Authentication accounts allowed)
+        # Clean up all old mock/demo accounts (Only genuine Google Authentication accounts and Admin allowed)
         try:
             cursor.execute("""
                 DELETE FROM users 
                 WHERE email != 'zerobossai@gmail.com' 
-                  AND (email LIKE '%@zeroboss.trade' OR email LIKE '%@example.com' OR email = 'demo@zeroboss.trade')
+                  AND (
+                      email LIKE '%@zeroboss.trade' 
+                      OR email LIKE '%@example.com' 
+                      OR email LIKE '%@test.com' 
+                      OR email LIKE '%@zerotrade.test' 
+                      OR email IN ('demo@zeroboss.trade', 'pola@gmail.com', 'hazz@gmail.com', 'harrysaido66@gmail.com')
+                  )
             """)
+            cursor.execute("DELETE FROM positions WHERE user_id NOT IN (SELECT id FROM users)")
+            cursor.execute("DELETE FROM orders WHERE user_id NOT IN (SELECT id FROM users)")
+            cursor.execute("DELETE FROM transactions WHERE user_id NOT IN (SELECT id FROM users)")
         except Exception:
             pass
 
