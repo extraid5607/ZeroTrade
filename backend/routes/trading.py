@@ -215,7 +215,14 @@ def get_pnl_report(
     end_date: Optional[str] = Query(None, description="YYYY-MM-DD"),
     user: dict = Depends(get_current_user)
 ):
-    """Retrieve Zerodha Console-style 1-Year P&L report, daily timeline chart, and analytics."""
+    """Retrieve Zerodha Console-style 1-Year P&L report, daily timeline chart, and analytics (Paid Subscribers Only)."""
+    is_paid = bool(user.get("isPaidPlan") or user.get("isAdmin") or (user.get("planId") and user.get("planId") not in ("basic", "free")))
+    if not is_paid:
+        raise HTTPException(
+            status_code=403, 
+            detail="1-Year P&L Statements and trade ledgers are reserved exclusively for paid subscribers. Please upgrade your plan."
+        )
+
     try:
         report = order_engine.get_pnl_report(
             user_id=user["id"],
@@ -235,7 +242,13 @@ def export_pnl_csv(
     asset_class: str = Query("all"),
     user: dict = Depends(get_current_user)
 ):
-    """Export trading statement as a CSV file."""
+    """Export trading statement as a CSV file (Paid Subscribers Only)."""
+    is_paid = bool(user.get("isPaidPlan") or user.get("isAdmin") or (user.get("planId") and user.get("planId") not in ("basic", "free")))
+    if not is_paid:
+        raise HTTPException(
+            status_code=403, 
+            detail="CSV trade ledger exports are reserved exclusively for paid subscribers. Please upgrade your plan."
+        )
 
     try:
         report = order_engine.get_pnl_report(

@@ -132,6 +132,108 @@ export default function PnlReport({ onBack = null, user = null, onOpenBillingMod
   }, [dailyPnl]);
 
 
+  if (!isPaid) {
+    return (
+      <div className="flex flex-col gap-5 max-w-5xl mx-auto w-full pb-12">
+        {/* Header Bar */}
+        <div className="bg-white dark:bg-surface-darkPanel rounded-2xl border border-gray-200 dark:border-surface-darkBorder p-4 sm:p-5 shadow-sm flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="p-2 rounded-xl border border-gray-200 dark:border-surface-darkBorder text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-surface-darkHover transition-colors mr-1 cursor-pointer"
+                title="Back to Account Overview"
+              >
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            )}
+            <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 flex items-center justify-center text-amber-500 border border-amber-200 dark:border-amber-900/50">
+              <Lock className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white tracking-tight flex items-center gap-2">
+                <span>1-Year P&amp;L Statement &amp; Tax Report</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 border border-amber-500/30 uppercase">
+                  PRO FEATURE
+                </span>
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Exclusive performance auditing, trade ledgers &amp; CSV tax reporting for paid accounts.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Locked Feature Showcase Card */}
+        <div className="bg-white dark:bg-surface-darkPanel rounded-2xl border border-gray-200 dark:border-surface-darkBorder p-6 sm:p-8 shadow-sm flex flex-col items-center text-center relative overflow-hidden">
+          
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/25 mb-4">
+            <Lock className="w-8 h-8" />
+          </div>
+
+          <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white max-w-md">
+            Unlock Full 1-Year P&amp;L Statements &amp; Trade Analytics
+          </h3>
+          
+          <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-lg">
+            Real-time 1-Year P&amp;L statements, win-rate analytics, daily profit curves, and CSV export capabilities are reserved for paid plan subscribers.
+          </p>
+
+          {/* Feature Highlights Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-6 text-left w-full max-w-xl">
+            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-bold text-gray-900 dark:text-white">Daily P&amp;L Timeline &amp; Heatmap</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">Track day-by-day profit distribution and visual returns</div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-bold text-gray-900 dark:text-white">Win Rate &amp; Profit Factor</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">Quantitative metrics including average win/loss ratio</div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-bold text-gray-900 dark:text-white">1-Click CSV / Excel Export</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">Instant downloads for tax compliance and accounting</div>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-surface-darkCard border border-gray-100 dark:border-surface-darkBorder flex items-start gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+              <div>
+                <div className="text-xs font-bold text-gray-900 dark:text-white">Asset-Wise Breakdown</div>
+                <div className="text-[11px] text-gray-400 mt-0.5">Filter by Stocks, Crypto, Forex, and Futures</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Upgrade CTA Button */}
+          {onOpenBillingModal && (
+            <button
+              onClick={() => onOpenBillingModal('reset_10k')}
+              className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold text-sm shadow-xl shadow-blue-500/25 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Upgrade Plan Starting at ₹199 (UPI)</span>
+            </button>
+          )}
+
+          <div className="text-[11px] text-gray-400 mt-3">
+            Instant activation with QR code &bull; 20x Leverage unlocked &bull; 30-180 days duration
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-5 max-w-5xl mx-auto w-full pb-12">
       
