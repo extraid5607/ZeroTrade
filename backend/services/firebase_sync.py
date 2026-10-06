@@ -101,7 +101,7 @@ def sync_user(user_data: Dict[str, Any]):
     _run_bg(_task)
 
 
-def delete_user_position(user_id: int, symbol: str):
+def delete_user_position(user_id: int, symbol: str, user_email: str = None):
     """Explicitly delete a closed/exited position from Firebase Firestore."""
     def _task():
         db = get_firestore_client()
@@ -110,7 +110,12 @@ def delete_user_position(user_id: int, symbol: str):
         try:
             doc_id = f"{user_id}_{symbol.replace('/', '_').replace(' ', '_')}"
             db.collection("positions").document(doc_id).delete()
-            logger.info(f"Firebase deleted position doc: {doc_id}")
+            if user_email:
+                docs = list(db.collection("positions").where("user_email", "==", user_email.lower().strip()).stream())
+                for d in docs:
+                    if d.to_dict().get("symbol") == symbol:
+                        d.reference.delete()
+            logger.info(f"Firebase deleted position doc: {doc_id} for symbol: {symbol}")
         except Exception as e:
             logger.debug(f"Firebase delete_user_position error: {e}")
     _run_bg(_task)
@@ -150,6 +155,13 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
 
             # Query all existing positions for this user in Firestore and delete any that are no longer active
             user_docs = list(db.collection("positions").where("user_id", "==", user_id).stream())
+            if user_email:
+                email_docs = list(db.collection("positions").where("user_email", "==", user_email.lower().strip()).stream())
+                seen_ids = {d.id for d in user_docs}
+                for ed in email_docs:
+                    if ed.id not in seen_ids:
+                        user_docs.append(ed)
+
             for d in user_docs:
                 data = d.to_dict()
                 if data.get("symbol") not in active_symbols:
@@ -159,6 +171,7 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
         except Exception as e:
             logger.debug(f"Firebase sync_all_user_positions error: {e}")
     _run_bg(_task)
+
 
 
 def restore_user_positions(user_id: int, user_email: str = None):

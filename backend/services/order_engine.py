@@ -271,12 +271,18 @@ class OrderEngine:
                         remaining_short = short_qty - covered_qty
                         if remaining_short <= 1e-7:
                             cursor.execute("DELETE FROM positions WHERE id = ?", (pos["id"],))
+                            try:
+                                from backend.services.firebase_sync import delete_user_position
+                                delete_user_position(user_id, symbol)
+                            except Exception:
+                                pass
                         else:
                             cursor.execute("""
                                 UPDATE positions
                                 SET quantity = ?, updated_at = CURRENT_TIMESTAMP
                                 WHERE id = ?
                             """, (-remaining_short, pos["id"]))
+
 
                         cursor.execute("""
                             INSERT INTO orders (user_id, symbol, asset_class, side, order_type, quantity, leverage, status, filled_price, filled_at)
@@ -394,12 +400,18 @@ class OrderEngine:
                         remaining_long = long_qty - closed_qty
                         if remaining_long <= 1e-7:
                             cursor.execute("DELETE FROM positions WHERE id = ?", (pos["id"],))
+                            try:
+                                from backend.services.firebase_sync import delete_user_position
+                                delete_user_position(user_id, symbol)
+                            except Exception:
+                                pass
                         else:
                             cursor.execute("""
                                 UPDATE positions
                                 SET quantity = ?, updated_at = CURRENT_TIMESTAMP
                                 WHERE id = ?
                             """, (remaining_long, pos["id"]))
+
 
                         cursor.execute("""
                             INSERT INTO orders (user_id, symbol, asset_class, side, order_type, quantity, leverage, status, filled_price, filled_at)
@@ -909,19 +921,10 @@ class OrderEngine:
             cash = u["virtual_cash"]
             user_email = u["email"]
 
-            # 1. Self-healing check: If SQLite has no positions, verify if positions exist in Firestore
-            cursor.execute("SELECT COUNT(*) as cnt FROM positions WHERE user_id = ? AND quantity != 0", (user_id,))
-            pos_cnt_row = cursor.fetchone()
-            if not pos_cnt_row or pos_cnt_row["cnt"] == 0:
-                try:
-                    from backend.services.firebase_sync import restore_user_positions
-                    restore_user_positions(user_id, user_email)
-                except Exception:
-                    pass
-
             # 1. Open active positions (both LONG and SHORT)
             cursor.execute("SELECT * FROM positions WHERE user_id = ? AND quantity != 0", (user_id,))
             pos_rows = cursor.fetchall()
+
 
             positions = []
             total_market_value = 0.0
