@@ -116,10 +116,10 @@ def delete_user_position(user_id: int, symbol: str):
     _run_bg(_task)
 
 
-def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]]):
+def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]], user_email: str = None):
     """
     Synchronize all active positions for a user with Firebase Firestore.
-    Writes/updates active positions and automatically deletes any stale or closed positions from Firestore.
+    Writes/updates active positions with user_id and user_email.
     """
     def _task():
         db = get_firestore_client()
@@ -134,8 +134,10 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                 sym = pos["symbol"]
                 active_symbols.add(sym)
                 doc_id = f"{user_id}_{sym.replace('/', '_').replace(' ', '_')}"
+                email_val = user_email or pos.get("user_email") or ""
                 doc = {
                     "user_id": user_id,
+                    "user_email": email_val.lower().strip() if email_val else "",
                     "symbol": sym,
                     "asset_class": pos.get("asset_class", "stock"),
                     "quantity": qty,
@@ -157,6 +159,55 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
         except Exception as e:
             logger.debug(f"Firebase sync_all_user_positions error: {e}")
     _run_bg(_task)
+
+
+def restore_user_positions(user_id: int, user_email: str = None):
+    """
+    Restore active positions for a specific user from Firestore into SQLite.
+    Guarantees active trades are never lost on server restarts or container recycling.
+    """
+    db = get_firestore_client()
+    if not db:
+        return []
+    try:
+        from backend.database import get_db
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Query positions by user_id
+            pos_docs = list(db.collection("positions").where("user_id", "==", user_id).stream())
+            if not pos_docs and user_email:
+                pos_docs = list(db.collection("positions").where("user_email", "==", user_email.lower().strip()).stream())
+
+            restored = []
+            for p in pos_docs:
+                data = p.to_dict()
+                qty = float(data.get("quantity") or 0.0)
+                if abs(qty) <= 1e-7:
+                    continue
+                sym = data.get("symbol")
+                if not sym:
+                    continue
+                cursor.execute("""
+                    INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage, expiry_date)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id, symbol) DO UPDATE SET
+                        quantity = excluded.quantity,
+                        avg_entry_price = excluded.avg_entry_price,
+                        leverage = excluded.leverage,
+                        expiry_date = excluded.expiry_date
+                """, (
+                    user_id, sym, data.get("asset_class", "stock"),
+                    qty, float(data.get("avg_entry_price", 0.0)), float(data.get("leverage", 1.0)),
+                    data.get("expiry_date")
+                ))
+                restored.append(sym)
+            if restored:
+                logger.info(f"Restored {len(restored)} positions ({restored}) from Firestore for user #{user_id}")
+            return restored
+    except Exception as e:
+        logger.debug(f"restore_user_positions error: {e}")
+        return []
 
 
 def sync_order(order_data: Dict[str, Any]):

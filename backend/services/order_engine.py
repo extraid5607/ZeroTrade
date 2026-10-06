@@ -73,11 +73,14 @@ class OrderEngine:
                 c = conn.cursor()
                 c.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin FROM users WHERE id = ?", (user_id,))
                 u = c.fetchone()
+                user_email = u["email"] if u else None
                 if u:
                     sync_user(dict(u))
                 c.execute("SELECT * FROM positions WHERE user_id = ?", (user_id,))
                 active_pos = [dict(p) for p in c.fetchall()]
-                sync_all_user_positions(user_id, active_pos)
+                for p in active_pos:
+                    p["user_email"] = user_email
+                sync_all_user_positions(user_id, active_pos, user_email=user_email)
 
                 # Sync latest orders for this user to Firestore
                 c.execute("SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 25", (user_id,))
@@ -899,11 +902,22 @@ class OrderEngine:
         with get_db() as conn:
             cursor = conn.cursor()
 
-            cursor.execute("SELECT virtual_cash FROM users WHERE id = ?", (user_id,))
+            cursor.execute("SELECT virtual_cash, email FROM users WHERE id = ?", (user_id,))
             u = cursor.fetchone()
             if not u:
                 raise ValueError("User not found.")
             cash = u["virtual_cash"]
+            user_email = u["email"]
+
+            # 1. Self-healing check: If SQLite has no positions, verify if positions exist in Firestore
+            cursor.execute("SELECT COUNT(*) as cnt FROM positions WHERE user_id = ? AND quantity != 0", (user_id,))
+            pos_cnt_row = cursor.fetchone()
+            if not pos_cnt_row or pos_cnt_row["cnt"] == 0:
+                try:
+                    from backend.services.firebase_sync import restore_user_positions
+                    restore_user_positions(user_id, user_email)
+                except Exception:
+                    pass
 
             # 1. Open active positions (both LONG and SHORT)
             cursor.execute("SELECT * FROM positions WHERE user_id = ? AND quantity != 0", (user_id,))

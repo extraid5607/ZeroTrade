@@ -154,7 +154,7 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         if not user:
             # Check Firebase Firestore in case local DB restarted
             try:
-                from backend.services.firebase_sync import get_firestore_client
+                from backend.services.firebase_sync import get_firestore_client, restore_user_positions
                 f_db = get_firestore_client()
                 if f_db:
                     data = None
@@ -173,15 +173,22 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
                             ON CONFLICT(email) DO UPDATE SET
                                 virtual_cash = excluded.virtual_cash,
                                 display_name = excluded.display_name,
-                                is_admin = excluded.is_admin
+                                is_admin = excluded.is_admin,
+                                plan_id = excluded.plan_id,
+                                plan_name = excluded.plan_name,
+                                plan_expires_at = excluded.plan_expires_at,
+                                max_leverage = excluded.max_leverage
                         """, (
                             data["id"], data["email"], data.get("password_hash", ""),
-                            data["display_name"], data["virtual_cash"], data.get("is_admin", 0),
+                            data["display_name"], float(data.get("virtual_cash", 2000.0)), int(data.get("is_admin", 0)),
                             data.get("plan_id", "free"), data.get("plan_name", "Free Basic"),
-                            data.get("plan_expires_at"), data.get("max_leverage", 2)
+                            data.get("plan_expires_at"), float(data.get("max_leverage", 2))
                         ))
                         cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, created_at FROM users WHERE email = ?", (data["email"],))
                         user = cursor.fetchone()
+                        
+                        # Recover positions from Firestore immediately
+                        restore_user_positions(data["id"], data["email"])
             except Exception as e:
                 logger.debug(f"Firebase fetch in get_current_user error: {e}")
 
@@ -241,14 +248,55 @@ def google_login(req: GoogleAuthRequest):
         user = cursor.fetchone()
 
         if not user:
-            # Create new user
-            dummy_pw_hash = hash_password(f"google_{email}_{time.time()}")
-            cursor.execute("""
-                INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, max_leverage)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (email, dummy_pw_hash, name, starting_cash, 1 if is_admin else 0, plan_id, plan_name, max_leverage))
+            # Check Firebase Firestore first before creating a fresh user
+            firestore_user = None
+            try:
+                from backend.services.firebase_sync import get_firestore_client
+                f_db = get_firestore_client()
+                if f_db:
+                    f_docs = list(f_db.collection("users").where("email", "==", email).limit(1).stream())
+                    if f_docs:
+                        firestore_user = f_docs[0].to_dict()
+            except Exception as fe:
+                logger.debug(f"Firestore check in google_login: {fe}")
+
+            if firestore_user:
+                cursor.execute("""
+                    INSERT INTO users (id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(email) DO UPDATE SET
+                        virtual_cash = excluded.virtual_cash,
+                        display_name = excluded.display_name,
+                        is_admin = excluded.is_admin,
+                        plan_id = excluded.plan_id,
+                        plan_name = excluded.plan_name,
+                        plan_expires_at = excluded.plan_expires_at,
+                        max_leverage = excluded.max_leverage
+                """, (
+                    firestore_user.get("id"), firestore_user["email"], firestore_user.get("password_hash", ""),
+                    firestore_user.get("display_name", name), float(firestore_user.get("virtual_cash", starting_cash)),
+                    int(firestore_user.get("is_admin", 1 if is_admin else 0)),
+                    firestore_user.get("plan_id", plan_id), firestore_user.get("plan_name", plan_name),
+                    firestore_user.get("plan_expires_at"), float(firestore_user.get("max_leverage", max_leverage)),
+                    int(firestore_user.get("is_banned", 0)), firestore_user.get("ban_reason", "")
+                ))
+            else:
+                dummy_pw_hash = hash_password(f"google_{email}_{time.time()}")
+                cursor.execute("""
+                    INSERT INTO users (email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, max_leverage)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (email, dummy_pw_hash, name, starting_cash, 1 if is_admin else 0, plan_id, plan_name, max_leverage))
+
             cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, is_banned, ban_reason FROM users WHERE email = ?", (email,))
             user = cursor.fetchone()
+
+            # Restore positions for this user from Firestore
+            if user:
+                try:
+                    from backend.services.firebase_sync import restore_user_positions
+                    restore_user_positions(user["id"], email)
+                except Exception:
+                    pass
         else:
             if is_admin and user["is_admin"] != 1:
                 cursor.execute("UPDATE users SET is_admin = 1, plan_id = 'elite', plan_name = 'Master Admin', max_leverage = 20 WHERE id = ?", (user["id"],))
