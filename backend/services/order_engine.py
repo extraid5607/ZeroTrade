@@ -273,6 +273,7 @@ class OrderEngine:
                     else:
                         log_position_event("POSITION_CREATED", user_id, symbol, 0.0, quantity, fill_price, "LONG_OPEN", order_id, user_email)
 
+                    conn.commit()
                     self._invalidate_cache(user_id)
                     return {
                         "success": True,
@@ -341,6 +342,7 @@ class OrderEngine:
                         else:
                             log_position_event("POSITION_DECREASED", user_id, symbol, -short_qty, -remaining_short, entry_price, "SHORT_COVER_PARTIAL", order_id, user_email)
 
+                        conn.commit()
                         self._invalidate_cache(user_id)
                         return {
                             "success": True,
@@ -407,6 +409,7 @@ class OrderEngine:
                         log_position_event("POSITION_CLOSED", user_id, symbol, -short_qty, 0.0, entry_price, "SHORT_COVER_FLIP", order_id, user_email)
                         log_position_event("POSITION_CREATED", user_id, symbol, 0.0, new_long_qty, fill_price, "FLIP_TO_LONG", order_id, user_email)
 
+                        conn.commit()
                         self._invalidate_cache(user_id)
                         return {
                             "success": True,
@@ -478,6 +481,7 @@ class OrderEngine:
                         else:
                             log_position_event("POSITION_DECREASED", user_id, symbol, long_qty, remaining_long, entry_price, "LONG_CLOSE_PARTIAL", order_id, user_email)
 
+                        conn.commit()
                         self._invalidate_cache(user_id)
                         return {
                             "success": True,
@@ -544,6 +548,7 @@ class OrderEngine:
                         log_position_event("POSITION_CLOSED", user_id, symbol, long_qty, 0.0, entry_price, "LONG_CLOSE_FLIP", order_id, user_email)
                         log_position_event("POSITION_CREATED", user_id, symbol, 0.0, -new_short_qty, fill_price, "FLIP_TO_SHORT", order_id, user_email)
 
+                        conn.commit()
                         self._invalidate_cache(user_id)
                         return {
                             "success": True,
@@ -626,6 +631,7 @@ class OrderEngine:
                     else:
                         log_position_event("POSITION_INCREASED", user_id, symbol, -old_short_qty, -combined_short, combined_avg, "SHORT_ADD", order_id, user_email)
 
+                    conn.commit()
                     self._invalidate_cache(user_id)
                     return {
                         "success": True,

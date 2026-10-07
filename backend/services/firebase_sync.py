@@ -186,7 +186,8 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
     """
     Synchronize active positions for a user with Firebase Firestore.
     Writes/updates active positions using stable email-based document IDs.
-    Does NOT delete unmentioned positions (deletion only happens via explicit position close or reset).
+    Prunes any positions from Firestore that are no longer active in SQLite,
+    guaranteeing that closed/exited positions are never resurrected.
     """
     def _task():
         db = get_firestore_client()
@@ -206,13 +207,22 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                 except Exception:
                     pass
 
+            email_clean = (user_email or "").lower().strip()
+            active_symbols = set()
+            active_doc_ids = set()
+
+            # 1. Write or update currently active positions
             for pos in current_positions:
                 qty = float(pos.get("quantity") or 0.0)
                 if abs(qty) <= 1e-7:
                     continue
                 sym = pos["symbol"]
-                email_val = (user_email or pos.get("user_email") or "").lower().strip()
+                email_val = email_clean or (pos.get("user_email") or "").lower().strip()
                 doc_id = get_position_doc_id(email_val, sym, user_id=user_id)
+                active_symbols.add(sym)
+                active_symbols.add(sanitize_symbol_for_doc_id(sym))
+                active_doc_ids.add(doc_id)
+
                 doc = {
                     "user_id": user_id,
                     "user_email": email_val,
@@ -226,7 +236,7 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                 }
                 db.collection("positions").document(doc_id).set(doc, merge=True)
 
-                # Clean up legacy numeric doc_id if different from new doc_id
+                # Clean up legacy numeric doc_id if different
                 legacy_id = f"{user_id}_{sym.replace('/', '_').replace(' ', '_')}"
                 if legacy_id != doc_id:
                     try:
@@ -235,6 +245,21 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                         pass
 
                 logger.info(f"[POSITION_SYNCED] user_id={user_id} email={email_val} symbol={sym} qty={qty} avg_price={pos['avg_entry_price']} doc_id={doc_id} source=firestore")
+
+            # 2. Prune closed / exited positions from Firestore for this user
+            if email_clean:
+                user_docs = list(db.collection("positions").where("user_email", "==", email_clean).stream())
+                for d in user_docs:
+                    d_data = d.to_dict()
+                    d_sym = d_data.get("symbol", "")
+                    d_sym_clean = sanitize_symbol_for_doc_id(d_sym)
+                    if d.id not in active_doc_ids and d_sym not in active_symbols and d_sym_clean not in active_symbols:
+                        try:
+                            d.reference.delete()
+                            logger.info(f"[POSITION_PRUNED_CLOSED] Pruned closed position {d_sym} (doc: {d.id}) from Firestore for {email_clean}")
+                        except Exception:
+                            pass
+
         except Exception as e:
             logger.warning(f"[POSITION_SYNC_FAILED] user_id={user_id} email={user_email} error={e}")
     _run_bg(_task)
