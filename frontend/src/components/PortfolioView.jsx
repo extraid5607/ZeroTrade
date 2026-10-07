@@ -421,6 +421,7 @@ export default function PortfolioView({
         const precision = (selectedPos.assetClass === 'forex' || curPrice < 5) ? 4 : 2;
         const posMargin = Number(selectedPos.marginInvested) || ((Math.abs(posQty) * avgPrice) / posLev);
         const nominalVal = Math.abs(posQty) * curPrice;
+        const isOpt = Boolean(selectedPos.isOption || selectedPos.assetClass === 'options' || selectedPos.symbol?.includes(' CE') || selectedPos.symbol?.includes(' PE') || selectedPos.symbol?.includes(' CALL') || selectedPos.symbol?.includes(' PUT'));
 
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">

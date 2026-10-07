@@ -64,14 +64,24 @@ def log_position_event(
     avg_price: float,
     reason: str,
     order_id: Optional[int] = None,
+    position_id: Optional[int] = None,
     user_email: Optional[str] = None,
+    asset_class: Optional[str] = None,
+    leverage: Optional[float] = None,
     source: str = "order_engine"
 ):
-    """Structured audit log for position lifecycle events."""
+    """Structured audit log for position lifecycle events with complete DB and runtime context."""
+    from backend.database import IS_POSTGRES
+    from backend.config import SQLITE_DB_PATH, DATABASE_URL
+    db_backend = "PostgreSQL" if IS_POSTGRES else "SQLite"
+    db_path = "PostgreSQL_Pool" if IS_POSTGRES else SQLITE_DB_PATH
+    db_url_set = bool(DATABASE_URL)
+    now_ts = datetime.now(timezone.utc).isoformat()
     logger.info(
-        f"[{event}] user_id={user_id} email={user_email or 'unknown'} symbol={symbol} "
-        f"old_qty={old_quantity} new_qty={new_quantity} avg_price={avg_price} "
-        f"reason={reason} order_id={order_id} source={source}"
+        f"[{event}] timestamp={now_ts} user_id={user_id} email={user_email or 'unknown'} "
+        f"symbol={symbol} asset_class={asset_class or 'unknown'} old_qty={old_quantity} new_qty={new_quantity} "
+        f"avg_price={avg_price} leverage={leverage or 1.0} pos_id={position_id} order_id={order_id} "
+        f"db_backend={db_backend} db_path={db_path} db_url_set={db_url_set} reason={reason} source={source}"
     )
 
 
@@ -1012,6 +1022,16 @@ class OrderEngine:
             cursor.execute("SELECT * FROM positions WHERE user_id = ? AND quantity != 0", (user_id,))
             pos_rows = cursor.fetchall()
 
+            # Auto-heal from cloud backup: If local DB has 0 open positions, check Firestore for user's positions
+            if len(pos_rows) == 0 and user_email:
+                try:
+                    from backend.services.firebase_sync import restore_user_positions
+                    restored_syms = restore_user_positions(user_id, user_email)
+                    if restored_syms:
+                        cursor.execute("SELECT * FROM positions WHERE user_id = ? AND quantity != 0", (user_id,))
+                        pos_rows = cursor.fetchall()
+                except Exception as restore_err:
+                    logger.debug(f"get_portfolio auto-restore: {restore_err}")
 
             positions = []
             total_market_value = 0.0
@@ -1025,6 +1045,12 @@ class OrderEngine:
                 p_cat = p["asset_class"]
                 is_opt = is_option_asset(sym, p_cat)
                 pos_lev = p["leverage"] if "leverage" in p.keys() and p["leverage"] else (0.1 if (is_opt and qty < 0) else 1.0)
+                
+                log_position_event(
+                    "POSITION_READ", user_id, sym, qty, qty, avg_entry,
+                    "PORTFOLIO_QUERY", position_id=p["id"], user_email=user_email,
+                    asset_class=p_cat, leverage=pos_lev, source="get_portfolio"
+                )
                 ticker = data_hub.tickers.get(sym, {})
                 current_price = ticker.get("price", avg_entry)
                 is_short = qty < 0

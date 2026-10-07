@@ -101,6 +101,34 @@ def sync_user(user_data: Dict[str, Any]):
     _run_bg(_task)
 
 
+def sanitize_email_for_doc_id(email: str) -> str:
+    """Normalize and sanitize email string into a safe Firestore document ID component."""
+    if not email:
+        return "unknown"
+    return email.lower().strip().replace("@", "_at_").replace(".", "_").replace("+", "_plus_")
+
+
+def sanitize_symbol_for_doc_id(symbol: str) -> str:
+    """Normalize and sanitize symbol into a safe Firestore document ID component."""
+    if not symbol:
+        return "unknown"
+    return symbol.strip().upper().replace("/", "_").replace(" ", "_")
+
+
+def get_position_doc_id(user_email: str, symbol: str, user_id: Optional[int] = None) -> str:
+    """
+    Generate stable primary Firestore document ID for a position.
+    Prefers email-based key: e.g. 'extraid5607_at_gmail_com__USD_JPY'.
+    Fallback to user_id key if email is completely absent.
+    """
+    sym_clean = sanitize_symbol_for_doc_id(symbol)
+    if user_email:
+        return f"{sanitize_email_for_doc_id(user_email)}__{sym_clean}"
+    if user_id is not None:
+        return f"uid_{user_id}__{sym_clean}"
+    return f"anon__{sym_clean}"
+
+
 def delete_user_position(user_id: int, symbol: str, user_email: str = None):
     """Explicitly delete a closed/exited position from Firebase Firestore."""
     def _task():
@@ -108,14 +136,40 @@ def delete_user_position(user_id: int, symbol: str, user_email: str = None):
         if not db:
             return
         try:
-            doc_id = f"{user_id}_{symbol.replace('/', '_').replace(' ', '_')}"
-            db.collection("positions").document(doc_id).delete()
+            sym_clean = sanitize_symbol_for_doc_id(symbol)
+            # 1. Delete by email-based doc_id
             if user_email:
-                docs = list(db.collection("positions").where("user_email", "==", user_email.lower().strip()).stream())
+                email_doc_id = get_position_doc_id(user_email, symbol)
+                try:
+                    db.collection("positions").document(email_doc_id).delete()
+                except Exception:
+                    pass
+
+                # Delete any documents matching user_email and symbol
+                email_clean = user_email.lower().strip()
+                docs = list(db.collection("positions").where("user_email", "==", email_clean).stream())
                 for d in docs:
-                    if d.to_dict().get("symbol") == symbol:
-                        d.reference.delete()
-            logger.info(f"Firebase deleted position doc: {doc_id} for symbol: {symbol}")
+                    d_data = d.to_dict()
+                    if d_data.get("symbol") == symbol or sanitize_symbol_for_doc_id(d_data.get("symbol", "")) == sym_clean:
+                        try:
+                            d.reference.delete()
+                        except Exception:
+                            pass
+
+            # 2. Delete legacy numeric doc_ids: f"{user_id}_{sym_clean}" and f"uid_{user_id}__{sym_clean}"
+            if user_id is not None:
+                legacy_doc_id = f"{user_id}_{symbol.replace('/', '_').replace(' ', '_')}"
+                legacy_doc_id2 = f"uid_{user_id}__{sym_clean}"
+                try:
+                    db.collection("positions").document(legacy_doc_id).delete()
+                except Exception:
+                    pass
+                try:
+                    db.collection("positions").document(legacy_doc_id2).delete()
+                except Exception:
+                    pass
+
+            logger.info(f"Firebase deleted position doc for symbol: {symbol} user_id={user_id} email={user_email}")
         except Exception as e:
             logger.debug(f"Firebase delete_user_position error: {e}")
     _run_bg(_task)
@@ -124,7 +178,7 @@ def delete_user_position(user_id: int, symbol: str, user_email: str = None):
 def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]], user_email: str = None):
     """
     Synchronize active positions for a user with Firebase Firestore.
-    Writes/updates active positions with user_id and user_email.
+    Writes/updates active positions using stable email-based document IDs.
     Does NOT delete unmentioned positions (deletion only happens via explicit position close or reset).
     """
     def _task():
@@ -150,11 +204,11 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                 if abs(qty) <= 1e-7:
                     continue
                 sym = pos["symbol"]
-                doc_id = f"{user_id}_{sym.replace('/', '_').replace(' ', '_')}"
-                email_val = user_email or pos.get("user_email") or ""
+                email_val = (user_email or pos.get("user_email") or "").lower().strip()
+                doc_id = get_position_doc_id(email_val, sym, user_id=user_id)
                 doc = {
                     "user_id": user_id,
-                    "user_email": email_val.lower().strip() if email_val else "",
+                    "user_email": email_val,
                     "symbol": sym,
                     "asset_class": pos.get("asset_class", "stock"),
                     "quantity": qty,
@@ -164,9 +218,18 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }
                 db.collection("positions").document(doc_id).set(doc, merge=True)
-                logger.info(f"[POSITION_SYNCED] user_id={user_id} email={email_val} symbol={sym} qty={qty} avg_price={pos['avg_entry_price']} source=firestore")
+
+                # Clean up legacy numeric doc_id if different from new doc_id
+                legacy_id = f"{user_id}_{sym.replace('/', '_').replace(' ', '_')}"
+                if legacy_id != doc_id:
+                    try:
+                        db.collection("positions").document(legacy_id).delete()
+                    except Exception:
+                        pass
+
+                logger.info(f"[POSITION_SYNCED] user_id={user_id} email={email_val} symbol={sym} qty={qty} avg_price={pos['avg_entry_price']} doc_id={doc_id} source=firestore")
         except Exception as e:
-            logger.warning(f"[POSITION_SYNC_FAILED] user_id={user_id} error={e}")
+            logger.warning(f"[POSITION_SYNC_FAILED] user_id={user_id} email={user_email} error={e}")
     _run_bg(_task)
 
 
@@ -186,7 +249,7 @@ def clear_user_positions(user_id: int, user_email: str = None):
                         user_docs.append(ed)
             for d in user_docs:
                 d.reference.delete()
-            logger.info(f"Firebase cleared all positions for user {user_id}")
+            logger.info(f"Firebase cleared all positions for user {user_id} ({user_email})")
         except Exception as e:
             logger.debug(f"Firebase clear_user_positions error: {e}")
     _run_bg(_task)
@@ -197,8 +260,7 @@ def clear_user_positions(user_id: int, user_email: str = None):
 def restore_user_positions(user_id: int, user_email: str = None):
     """
     Restore active positions for a specific user from Firestore into SQLite.
-    Queries by both user_id and user_email to guarantee no positions are missed
-    across container restarts or user ID remappings.
+    Queries by user_email first (globally unique) and falls back to user_id.
     """
     db = get_firestore_client()
     if not db:
@@ -215,17 +277,27 @@ def restore_user_positions(user_id: int, user_email: str = None):
                 if u:
                     user_email = u["email"]
 
-            # Query positions by user_id
-            pos_docs = list(db.collection("positions").where("user_id", "==", user_id).stream())
-            
+            pos_docs = []
+            seen_ids = set()
+
             # Query positions by user_email if available
             if user_email:
                 email_clean = user_email.lower().strip()
                 email_docs = list(db.collection("positions").where("user_email", "==", email_clean).stream())
-                seen_ids = {d.id for d in pos_docs}
                 for ed in email_docs:
                     if ed.id not in seen_ids:
+                        seen_ids.add(ed.id)
                         pos_docs.append(ed)
+
+            # Query positions by user_id
+            uid_docs = list(db.collection("positions").where("user_id", "==", user_id).stream())
+            for ud in uid_docs:
+                if ud.id not in seen_ids:
+                    ud_data = ud.to_dict()
+                    ud_email = (ud_data.get("user_email") or "").lower().strip()
+                    if not ud_email or (user_email and ud_email == user_email.lower().strip()):
+                        seen_ids.add(ud.id)
+                        pos_docs.append(ud)
 
             restored = []
             for p in pos_docs:
@@ -399,8 +471,14 @@ def restore_from_firebase():
             valid_user_ids = {u["id"] for u in all_users}
             email_to_user_id = {u["email"].lower().strip(): u["id"] for u in all_users}
 
-            def _resolve_uid(data: dict) -> Optional[int]:
+            def _resolve_uid(data: dict, doc_id: str = "") -> Optional[int]:
                 uemail = (data.get("user_email") or data.get("email") or "").lower().strip()
+                if not uemail and doc_id and "_at_" in doc_id:
+                    try:
+                        email_part = doc_id.split("__")[0]
+                        uemail = email_part.replace("_at_", "@").replace("_plus_", "+")
+                    except Exception:
+                        pass
                 if uemail in email_to_user_id:
                     return email_to_user_id[uemail]
                 raw_uid = data.get("user_id")
@@ -424,7 +502,7 @@ def restore_from_firebase():
                     sym = data.get("symbol")
                     if not sym:
                         continue
-                    resolved_uid = _resolve_uid(data)
+                    resolved_uid = _resolve_uid(data, p.id)
                     if not resolved_uid:
                         continue
                     cursor.execute("""
@@ -440,6 +518,7 @@ def restore_from_firebase():
                         qty, float(data.get("avg_entry_price", 0.0)), float(data.get("leverage", 1.0)),
                         data.get("expiry_date")
                     ))
+                    logger.info(f"[POSITION_RESTORED] user_id={resolved_uid} symbol={sym} qty={qty} avg_price={data.get('avg_entry_price')} source=firestore_startup")
                 except Exception as pe:
                     logger.debug(f"Position restore error for {p.id}: {pe}")
 
