@@ -62,10 +62,17 @@ def get_firestore_client():
         return None
 
 
+from concurrent.futures import ThreadPoolExecutor
+
+_sync_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="firestore_sync")
+
+
 def _run_bg(target, *args):
-    """Run non-blocking background task."""
-    t = threading.Thread(target=target, args=args, daemon=True)
-    t.start()
+    """Run non-blocking background task via controlled thread pool."""
+    try:
+        _sync_executor.submit(target, *args)
+    except Exception as e:
+        logger.debug(f"_run_bg executor submit error: {e}")
 
 
 # =========================================================================

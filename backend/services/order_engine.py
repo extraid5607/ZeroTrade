@@ -112,15 +112,15 @@ class OrderEngine:
                     p["user_email"] = user_email
                 sync_all_user_positions(user_id, active_pos, user_email=user_email)
 
-                # Sync latest orders for this user to Firestore
-                c.execute("SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 25", (user_id,))
+                # Sync latest orders for this user to Firestore (top 3)
+                c.execute("SELECT * FROM orders WHERE user_id = ? ORDER BY id DESC LIMIT 3", (user_id,))
                 for o in c.fetchall():
                     od = dict(o)
                     od["user_email"] = user_email
                     sync_order(od)
 
-                # Sync latest transactions for this user to Firestore
-                c.execute("SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 25", (user_id,))
+                # Sync latest transactions for this user to Firestore (top 3)
+                c.execute("SELECT * FROM transactions WHERE user_id = ? ORDER BY id DESC LIMIT 3", (user_id,))
                 for t in c.fetchall():
                     td = dict(t)
                     td["user_email"] = user_email
