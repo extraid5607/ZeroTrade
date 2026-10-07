@@ -187,8 +187,9 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
                         cursor.execute("SELECT id, email, password_hash, display_name, virtual_cash, is_admin, plan_id, plan_name, plan_expires_at, max_leverage, created_at FROM users WHERE email = ?", (data["email"],))
                         user = cursor.fetchone()
                         
-                        # Recover positions from Firestore immediately
-                        restore_user_positions(data["id"], data["email"])
+                        # Recover positions from Firestore immediately using local SQLite user ID
+                        if user:
+                            restore_user_positions(user["id"], user["email"])
             except Exception as e:
                 logger.debug(f"Firebase fetch in get_current_user error: {e}")
 

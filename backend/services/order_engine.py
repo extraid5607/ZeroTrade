@@ -55,6 +55,26 @@ def is_option_asset(symbol: str, asset_class: str = None) -> bool:
     return False
 
 
+def log_position_event(
+    event: str,
+    user_id: int,
+    symbol: str,
+    old_quantity: float,
+    new_quantity: float,
+    avg_price: float,
+    reason: str,
+    order_id: Optional[int] = None,
+    user_email: Optional[str] = None,
+    source: str = "order_engine"
+):
+    """Structured audit log for position lifecycle events."""
+    logger.info(
+        f"[{event}] user_id={user_id} email={user_email or 'unknown'} symbol={symbol} "
+        f"old_qty={old_quantity} new_qty={new_quantity} avg_price={avg_price} "
+        f"reason={reason} order_id={order_id} source={source}"
+    )
+
+
 class OrderEngine:
     def __init__(self):
         # Link callback with data_hub so price changes check limit orders
@@ -95,8 +115,8 @@ class OrderEngine:
                     td = dict(t)
                     td["user_email"] = user_email
                     sync_transaction(td)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"_invalidate_cache sync error: {e}")
 
 
     def execute_market_order(
@@ -154,9 +174,9 @@ class OrderEngine:
         with get_db() as conn:
             cursor = conn.cursor()
 
-            # Fetch user cash and existing position in a single combined query
+            # Fetch user cash, email, and existing position in a single combined query
             cursor.execute("""
-                SELECT u.virtual_cash, p.id as pos_id, p.quantity as pos_qty, p.avg_entry_price, p.asset_class as pos_asset_class, p.leverage as pos_leverage
+                SELECT u.virtual_cash, u.email, p.id as pos_id, p.quantity as pos_qty, p.avg_entry_price, p.asset_class as pos_asset_class, p.leverage as pos_leverage
                 FROM users u
                 LEFT JOIN positions p ON p.user_id = u.id AND p.symbol = ?
                 WHERE u.id = ?
@@ -166,6 +186,7 @@ class OrderEngine:
                 raise ValueError("User not found.")
             user_and_pos = dict(raw_row)
             cash = user_and_pos["virtual_cash"]
+            user_email = user_and_pos.get("email")
             pos = None
             if user_and_pos.get("pos_id") is not None:
                 pos = {
@@ -237,6 +258,11 @@ class OrderEngine:
                         VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, 0.0, 0.0, 0)
                     """, (user_id, order_id, symbol, asset_class, quantity, fill_price, fill_price, effective_leverage))
 
+                    if pos:
+                        log_position_event("POSITION_INCREASED", user_id, symbol, pos["quantity"], combined_qty, combined_avg, "LONG_ADD", order_id, user_email)
+                    else:
+                        log_position_event("POSITION_CREATED", user_id, symbol, 0.0, quantity, fill_price, "LONG_OPEN", order_id, user_email)
+
                     self._invalidate_cache(user_id)
                     return {
                         "success": True,
@@ -278,7 +304,7 @@ class OrderEngine:
                             cursor.execute("DELETE FROM positions WHERE id = ?", (pos["id"],))
                             try:
                                 from backend.services.firebase_sync import delete_user_position
-                                delete_user_position(user_id, symbol)
+                                delete_user_position(user_id, symbol, user_email=user_email)
                             except Exception:
                                 pass
                         else:
@@ -287,7 +313,6 @@ class OrderEngine:
                                 SET quantity = ?, updated_at = CURRENT_TIMESTAMP
                                 WHERE id = ?
                             """, (-remaining_short, pos["id"]))
-
 
                         cursor.execute("""
                             INSERT INTO orders (user_id, symbol, asset_class, side, order_type, quantity, leverage, status, filled_price, filled_at)
@@ -299,6 +324,12 @@ class OrderEngine:
                             INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
                             VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
+
+                        if remaining_short <= 1e-7:
+                            log_position_event("POSITION_CLOSED", user_id, symbol, -short_qty, 0.0, entry_price, "SHORT_COVER_FULL", order_id, user_email)
+                            log_position_event("POSITION_DELETED", user_id, symbol, -short_qty, 0.0, entry_price, "SHORT_COVER_FULL", order_id, user_email)
+                        else:
+                            log_position_event("POSITION_DECREASED", user_id, symbol, -short_qty, -remaining_short, entry_price, "SHORT_COVER_PARTIAL", order_id, user_email)
 
                         self._invalidate_cache(user_id)
                         return {
@@ -363,6 +394,9 @@ class OrderEngine:
                             VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
 
+                        log_position_event("POSITION_CLOSED", user_id, symbol, -short_qty, 0.0, entry_price, "SHORT_COVER_FLIP", order_id, user_email)
+                        log_position_event("POSITION_CREATED", user_id, symbol, 0.0, new_long_qty, fill_price, "FLIP_TO_LONG", order_id, user_email)
+
                         self._invalidate_cache(user_id)
                         return {
                             "success": True,
@@ -407,7 +441,7 @@ class OrderEngine:
                             cursor.execute("DELETE FROM positions WHERE id = ?", (pos["id"],))
                             try:
                                 from backend.services.firebase_sync import delete_user_position
-                                delete_user_position(user_id, symbol)
+                                delete_user_position(user_id, symbol, user_email=user_email)
                             except Exception:
                                 pass
                         else:
@@ -416,7 +450,6 @@ class OrderEngine:
                                 SET quantity = ?, updated_at = CURRENT_TIMESTAMP
                                 WHERE id = ?
                             """, (remaining_long, pos["id"]))
-
 
                         cursor.execute("""
                             INSERT INTO orders (user_id, symbol, asset_class, side, order_type, quantity, leverage, status, filled_price, filled_at)
@@ -428,6 +461,12 @@ class OrderEngine:
                             INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
                             VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
+
+                        if remaining_long <= 1e-7:
+                            log_position_event("POSITION_CLOSED", user_id, symbol, long_qty, 0.0, entry_price, "LONG_CLOSE_FULL", order_id, user_email)
+                            log_position_event("POSITION_DELETED", user_id, symbol, long_qty, 0.0, entry_price, "LONG_CLOSE_FULL", order_id, user_email)
+                        else:
+                            log_position_event("POSITION_DECREASED", user_id, symbol, long_qty, remaining_long, entry_price, "LONG_CLOSE_PARTIAL", order_id, user_email)
 
                         self._invalidate_cache(user_id)
                         return {
@@ -491,6 +530,9 @@ class OrderEngine:
                             INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
                             VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)
                         """, (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_percent))
+
+                        log_position_event("POSITION_CLOSED", user_id, symbol, long_qty, 0.0, entry_price, "LONG_CLOSE_FLIP", order_id, user_email)
+                        log_position_event("POSITION_CREATED", user_id, symbol, 0.0, -new_short_qty, fill_price, "FLIP_TO_SHORT", order_id, user_email)
 
                         self._invalidate_cache(user_id)
                         return {
@@ -568,6 +610,11 @@ class OrderEngine:
                         INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close)
                         VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, 0.0, 0.0, 0)
                     """, (user_id, order_id, symbol, asset_class, quantity, fill_price, fill_price, effective_leverage))
+
+                    if not pos:
+                        log_position_event("POSITION_CREATED", user_id, symbol, 0.0, -quantity, fill_price, "SHORT_OPEN", order_id, user_email)
+                    else:
+                        log_position_event("POSITION_INCREASED", user_id, symbol, -old_short_qty, -combined_short, combined_avg, "SHORT_ADD", order_id, user_email)
 
                     self._invalidate_cache(user_id)
                     return {
@@ -732,6 +779,7 @@ class OrderEngine:
         """
         Check all pending limit orders for a symbol against the new live price and fill matching orders.
         """
+        affected_user_ids = set()
         try:
             with get_db() as conn:
                 cursor = conn.cursor()
@@ -761,10 +809,11 @@ class OrderEngine:
                         fill_margin = (fill_price * qty) / lev
 
                         # Fetch user & positions
-                        cursor.execute("SELECT virtual_cash FROM users WHERE id = ?", (user_id,))
+                        cursor.execute("SELECT virtual_cash, email FROM users WHERE id = ?", (user_id,))
                         user_row = cursor.fetchone()
                         if not user_row:
                             continue
+                        user_email = user_row["email"]
 
                         cursor.execute(
                             "SELECT id, quantity, avg_entry_price, leverage FROM positions WHERE user_id = ? AND symbol = ?",
@@ -795,11 +844,13 @@ class OrderEngine:
                                         "UPDATE positions SET quantity = ?, avg_entry_price = ?, leverage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
                                         (combined_qty, combined_avg, comb_lev, pos["id"])
                                     )
+                                    log_position_event("POSITION_INCREASED", user_id, symbol, old_qty, combined_qty, combined_avg, "LIMIT_BUY_ADD", order_id, user_email)
                                 else:
                                     cursor.execute(
                                         "INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage) VALUES (?, ?, ?, ?, ?, ?)",
                                         (user_id, symbol, asset_class, qty, fill_price, lev)
                                     )
+                                    log_position_event("POSITION_CREATED", user_id, symbol, 0.0, qty, fill_price, "LIMIT_BUY_OPEN", order_id, user_email)
 
                                 cursor.execute(
                                     "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, 0.0, 0.0, 0)",
@@ -821,8 +872,16 @@ class OrderEngine:
                                     rem = short_qty - qty
                                     if rem <= 1e-7:
                                         cursor.execute("DELETE FROM positions WHERE id = ?", (pos["id"],))
+                                        try:
+                                            from backend.services.firebase_sync import delete_user_position
+                                            delete_user_position(user_id, symbol, user_email=user_email)
+                                        except Exception:
+                                            pass
+                                        log_position_event("POSITION_CLOSED", user_id, symbol, -short_qty, 0.0, entry_price, "LIMIT_SHORT_COVER_FULL", order_id, user_email)
+                                        log_position_event("POSITION_DELETED", user_id, symbol, -short_qty, 0.0, entry_price, "LIMIT_SHORT_COVER_FULL", order_id, user_email)
                                     else:
                                         cursor.execute("UPDATE positions SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (-rem, pos["id"]))
+                                        log_position_event("POSITION_DECREASED", user_id, symbol, -short_qty, -rem, entry_price, "LIMIT_SHORT_COVER_PARTIAL", order_id, user_email)
 
                                     cursor.execute(
                                         "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)",
@@ -837,6 +896,9 @@ class OrderEngine:
 
                                     cursor.execute("UPDATE users SET virtual_cash = virtual_cash + ? WHERE id = ?", (margin_refund + realized_pnl, user_id))
                                     cursor.execute("UPDATE positions SET quantity = ?, avg_entry_price = ?, leverage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (new_long, fill_price, lev, pos["id"]))
+                                    log_position_event("POSITION_CLOSED", user_id, symbol, -short_qty, 0.0, entry_price, "LIMIT_COVER_FLIP", order_id, user_email)
+                                    log_position_event("POSITION_CREATED", user_id, symbol, 0.0, new_long, fill_price, "LIMIT_FLIP_TO_LONG", order_id, user_email)
+
                                     cursor.execute(
                                         "INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'BUY', ?, ?, ?, ?, ?, ?, 1)",
                                         (user_id, order_id, symbol, asset_class, covered_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct)
@@ -862,8 +924,17 @@ class OrderEngine:
                                     rem = long_qty - qty
                                     if rem <= 1e-7:
                                         cursor.execute("DELETE FROM positions WHERE id = ?", (pos["id"],))
+                                        try:
+                                            from backend.services.firebase_sync import delete_user_position
+                                            delete_user_position(user_id, symbol, user_email=user_email)
+                                        except Exception:
+                                            pass
+                                        log_position_event("POSITION_CLOSED", user_id, symbol, long_qty, 0.0, entry_price, "LIMIT_LONG_CLOSE_FULL", order_id, user_email)
+                                        log_position_event("POSITION_DELETED", user_id, symbol, long_qty, 0.0, entry_price, "LIMIT_LONG_CLOSE_FULL", order_id, user_email)
                                     else:
                                         cursor.execute("UPDATE positions SET quantity = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (rem, pos["id"]))
+                                        log_position_event("POSITION_DECREASED", user_id, symbol, long_qty, rem, entry_price, "LIMIT_LONG_CLOSE_PARTIAL", order_id, user_email)
+
                                     cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)", (user_id, order_id, symbol, asset_class, qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct))
                                 else:
                                     closed_qty = long_qty
@@ -876,6 +947,9 @@ class OrderEngine:
                                     cursor.execute("UPDATE users SET virtual_cash = virtual_cash + ? WHERE id = ?", (net_change, user_id))
 
                                     cursor.execute("UPDATE positions SET quantity = ?, avg_entry_price = ?, leverage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (-new_short, fill_price, lev, pos["id"]))
+                                    log_position_event("POSITION_CLOSED", user_id, symbol, long_qty, 0.0, entry_price, "LIMIT_LONG_CLOSE_FLIP", order_id, user_email)
+                                    log_position_event("POSITION_CREATED", user_id, symbol, 0.0, -new_short, fill_price, "LIMIT_FLIP_TO_SHORT", order_id, user_email)
+
                                     cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, ?, ?, 1)", (user_id, order_id, symbol, asset_class, closed_qty, fill_price, entry_price, pos_lev, realized_pnl, pnl_pct))
                             else:
                                 # Short sell limit fill
@@ -883,6 +957,7 @@ class OrderEngine:
                                 cursor.execute("UPDATE users SET virtual_cash = virtual_cash - ? WHERE id = ?", (new_short_margin, user_id))
                                 if not pos:
                                     cursor.execute("INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage) VALUES (?, ?, ?, ?, ?, ?)", (user_id, symbol, asset_class, -qty, fill_price, lev))
+                                    log_position_event("POSITION_CREATED", user_id, symbol, 0.0, -qty, fill_price, "LIMIT_SHORT_OPEN", order_id, user_email)
                                 else:
                                     old_short = abs(pos["quantity"])
                                     old_avg = pos["avg_entry_price"]
@@ -893,6 +968,8 @@ class OrderEngine:
                                     comb_m = old_m + new_short_margin
                                     comb_lev = ((comb_short * comb_avg) / comb_m) if comb_m > 0 else 1.0
                                     cursor.execute("UPDATE positions SET quantity = ?, avg_entry_price = ?, leverage = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (-comb_short, comb_avg, comb_lev, pos["id"]))
+                                    log_position_event("POSITION_INCREASED", user_id, symbol, -old_short, -comb_short, comb_avg, "LIMIT_SHORT_ADD", order_id, user_email)
+
                                 cursor.execute("INSERT INTO transactions (user_id, order_id, symbol, asset_class, side, quantity, price, entry_price, leverage, realized_pnl, pnl_percent, is_close) VALUES (?, ?, ?, ?, 'SELL', ?, ?, ?, ?, 0.0, 0.0, 0)", (user_id, order_id, symbol, asset_class, qty, fill_price, fill_price, lev))
 
                         cursor.execute("""
@@ -900,7 +977,12 @@ class OrderEngine:
                             SET status = 'FILLED', filled_price = ?, filled_at = CURRENT_TIMESTAMP
                             WHERE id = ?
                         """, (fill_price, order_id))
+                        affected_user_ids.add(user_id)
                         logger.info(f"Limit order #{order_id} FILLED for {symbol}: {side} {qty} @ ${fill_price}")
+
+            # Invalidate caches for all affected users
+            for uid in affected_user_ids:
+                self._invalidate_cache(uid)
         except Exception as e:
             logger.error(f"Error checking limit orders for {symbol}: {e}")
 
@@ -1242,6 +1324,12 @@ class OrderEngine:
             cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
             u = cursor.fetchone()
             user_email = u["email"] if u else None
+
+            # Log all positions being wiped
+            cursor.execute("SELECT symbol, quantity, avg_entry_price FROM positions WHERE user_id = ?", (user_id,))
+            for p in cursor.fetchall():
+                log_position_event("POSITION_DELETED", user_id, p["symbol"], p["quantity"], 0.0, p["avg_entry_price"], "RESET_PORTFOLIO", user_email=user_email)
+
             cursor.execute("UPDATE users SET virtual_cash = ? WHERE id = ?", (INITIAL_VIRTUAL_CASH, user_id))
             cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
             cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))

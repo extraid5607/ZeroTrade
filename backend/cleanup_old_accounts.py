@@ -12,6 +12,12 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.abspath("."))
 
+# Safety confirmation guard
+if "--confirm-purge" not in sys.argv and os.getenv("ALLOW_ACCOUNT_PURGE") != "true":
+    print("[SAFETY] cleanup_old_accounts.py requires explicit '--confirm-purge' flag or ALLOW_ACCOUNT_PURGE=true.")
+    print("Aborting to prevent accidental user or position deletion.")
+    sys.exit(0)
+
 # 1. Clean local SQLite DBs
 for db_path in ['data/zerotrade.db', 'zerotrade.db', 'backend/zerotrade.db']:
     if os.path.exists(db_path):
@@ -24,8 +30,18 @@ for db_path in ['data/zerotrade.db', 'zerotrade.db', 'backend/zerotrade.db']:
             current_users = c.execute("SELECT id, email, display_name FROM users").fetchall()
             print(f"Found {len(current_users)} users before purge: {current_users}")
             
-            # Delete old demo users (keep zerobossai@gmail.com)
-            c.execute("DELETE FROM users WHERE email != 'zerobossai@gmail.com'")
+            # Only delete legacy demo/mock users (NEVER delete genuine Google accounts or Master Admin)
+            c.execute("""
+                DELETE FROM users 
+                WHERE email != 'zerobossai@gmail.com' 
+                  AND (
+                      email LIKE '%@zeroboss.trade' 
+                      OR email LIKE '%@example.com' 
+                      OR email LIKE '%@test.com' 
+                      OR email LIKE '%@zerotrade.test' 
+                      OR email IN ('demo@zeroboss.trade', 'pola@gmail.com', 'hazz@gmail.com', 'harrysaido66@gmail.com')
+                  )
+            """)
             c.execute("DELETE FROM positions WHERE user_id NOT IN (SELECT id FROM users)")
             c.execute("DELETE FROM orders WHERE user_id NOT IN (SELECT id FROM users)")
             c.execute("DELETE FROM transactions WHERE user_id NOT IN (SELECT id FROM users)")

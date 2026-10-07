@@ -132,6 +132,19 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
         if not db:
             return
         try:
+            nonlocal user_email
+            if not user_email:
+                try:
+                    from backend.database import get_db
+                    with get_db() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
+                        u = cursor.fetchone()
+                        if u:
+                            user_email = u["email"]
+                except Exception:
+                    pass
+
             for pos in current_positions:
                 qty = float(pos.get("quantity") or 0.0)
                 if abs(qty) <= 1e-7:
@@ -151,8 +164,9 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }
                 db.collection("positions").document(doc_id).set(doc, merge=True)
+                logger.info(f"[POSITION_SYNCED] user_id={user_id} email={email_val} symbol={sym} qty={qty} avg_price={pos['avg_entry_price']} source=firestore")
         except Exception as e:
-            logger.debug(f"Firebase sync_all_user_positions error: {e}")
+            logger.warning(f"[POSITION_SYNC_FAILED] user_id={user_id} error={e}")
     _run_bg(_task)
 
 
@@ -183,7 +197,8 @@ def clear_user_positions(user_id: int, user_email: str = None):
 def restore_user_positions(user_id: int, user_email: str = None):
     """
     Restore active positions for a specific user from Firestore into SQLite.
-    Guarantees active trades are never lost on server restarts or container recycling.
+    Queries by both user_id and user_email to guarantee no positions are missed
+    across container restarts or user ID remappings.
     """
     db = get_firestore_client()
     if not db:
@@ -192,11 +207,25 @@ def restore_user_positions(user_id: int, user_email: str = None):
         from backend.database import get_db
         with get_db() as conn:
             cursor = conn.cursor()
-            
+
+            # If user_email is not passed, look it up
+            if not user_email:
+                cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
+                u = cursor.fetchone()
+                if u:
+                    user_email = u["email"]
+
             # Query positions by user_id
             pos_docs = list(db.collection("positions").where("user_id", "==", user_id).stream())
-            if not pos_docs and user_email:
-                pos_docs = list(db.collection("positions").where("user_email", "==", user_email.lower().strip()).stream())
+            
+            # Query positions by user_email if available
+            if user_email:
+                email_clean = user_email.lower().strip()
+                email_docs = list(db.collection("positions").where("user_email", "==", email_clean).stream())
+                seen_ids = {d.id for d in pos_docs}
+                for ed in email_docs:
+                    if ed.id not in seen_ids:
+                        pos_docs.append(ed)
 
             restored = []
             for p in pos_docs:
@@ -207,6 +236,11 @@ def restore_user_positions(user_id: int, user_email: str = None):
                 sym = data.get("symbol")
                 if not sym:
                     continue
+                entry_p = float(data.get("avg_entry_price", 0.0))
+                lev = float(data.get("leverage", 1.0))
+                ac = data.get("asset_class", "stock")
+                exp_d = data.get("expiry_date")
+
                 cursor.execute("""
                     INSERT INTO positions (user_id, symbol, asset_class, quantity, avg_entry_price, leverage, expiry_date)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -215,17 +249,15 @@ def restore_user_positions(user_id: int, user_email: str = None):
                         avg_entry_price = excluded.avg_entry_price,
                         leverage = excluded.leverage,
                         expiry_date = excluded.expiry_date
-                """, (
-                    user_id, sym, data.get("asset_class", "stock"),
-                    qty, float(data.get("avg_entry_price", 0.0)), float(data.get("leverage", 1.0)),
-                    data.get("expiry_date")
-                ))
+                """, (user_id, sym, ac, qty, entry_p, lev, exp_d))
                 restored.append(sym)
+                logger.info(f"[POSITION_RESTORED] user_id={user_id} email={user_email} symbol={sym} qty={qty} avg_price={entry_p} source=firestore")
+
             if restored:
-                logger.info(f"Restored {len(restored)} positions ({restored}) from Firestore for user #{user_id}")
+                logger.info(f"Restored {len(restored)} positions ({restored}) from Firestore for user #{user_id} ({user_email})")
             return restored
     except Exception as e:
-        logger.debug(f"restore_user_positions error: {e}")
+        logger.warning(f"restore_user_positions error: {e}")
         return []
 
 

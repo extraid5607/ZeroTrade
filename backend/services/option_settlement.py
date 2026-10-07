@@ -101,41 +101,25 @@ def get_underlying_spot_price(underlying: str) -> float:
 
 def is_option_expired(expiry_date_str: Optional[str], created_at_str: Optional[str] = None, symbol: Optional[str] = None) -> bool:
     """
-    Check if an option contract has expired based on US Eastern market time.
+    Check if an option contract has legitimately expired based on US Eastern market time.
     Options expire at 16:00:00 US Eastern on their expiration date.
-    If no expiry_date is provided, check if the position is a legacy contract or from a previous day.
+    A contract MUST have a valid, explicit expiry date to expire.
+    Never auto-expire positions based on creation timestamp or strike heuristics.
     """
+    if not expiry_date_str:
+        return False
+
     now_et = get_us_eastern_now()
-    today_et_str = now_et.date().isoformat()
-
-    if expiry_date_str:
-        try:
-            exp_date = datetime.strptime(expiry_date_str, "%Y-%m-%d").date()
-            today_date = now_et.date()
-            if exp_date < today_date:
-                return True
-            if exp_date == today_date and (now_et.hour >= 16 or (now_et.hour == 15 and now_et.minute >= 59)):
-                return True
-            return False
-        except Exception:
-            pass
-
-    # Legacy SPX options from 2026-09-22
-    if symbol and ("7730" in symbol or "7745" in symbol or "5800" in symbol):
-        return True
-
-    # If expiry_date is missing, check creation timestamp
-    if created_at_str:
-        try:
-            clean_ts = created_at_str.split(".")[0].replace("T", " ")
-            if " " in clean_ts:
-                pos_date_str = clean_ts.split(" ")[0]
-                if pos_date_str < today_et_str:
-                    return True
-        except Exception:
-            pass
-
-    return False
+    try:
+        exp_date = datetime.strptime(expiry_date_str.strip(), "%Y-%m-%d").date()
+        today_date = now_et.date()
+        if exp_date < today_date:
+            return True
+        if exp_date == today_date and (now_et.hour >= 16 or (now_et.hour == 15 and now_et.minute >= 59)):
+            return True
+        return False
+    except Exception:
+        return False
 
 
 def settle_expired_options(target_user_id: Optional[int] = None) -> List[Dict[str, Any]]:
@@ -249,6 +233,16 @@ def settle_expired_options(target_user_id: Optional[int] = None) -> List[Dict[st
                     "status": "ITM_EXERCISED" if intrinsic_per_contract > 0 else "OTM_EXPIRED_WORTHLESS"
                 }
 
+                try:
+                    from backend.services.firebase_sync import delete_user_position
+                    delete_user_position(user_id, symbol, user_email=pos.get("email"))
+                except Exception:
+                    pass
+
+                logger.info(f"[POSITION_EXPIRED] user_id={user_id} email={pos.get('email')} symbol={symbol} old_qty={abs_qty} new_qty=0.0 avg_price={entry_price} reason=OPTION_LONG_EXPIRED status={settle_info['status']}")
+                logger.info(f"[POSITION_CLOSED] user_id={user_id} email={pos.get('email')} symbol={symbol} old_qty={abs_qty} new_qty=0.0 avg_price={entry_price} reason=OPTION_LONG_EXPIRED")
+                logger.info(f"[POSITION_DELETED] user_id={user_id} email={pos.get('email')} symbol={symbol} old_qty={abs_qty} new_qty=0.0 avg_price={entry_price} reason=OPTION_LONG_EXPIRED")
+
             else:
                 # =====================================================================
                 # 2. SHORT OPTION (WRITER / SELLER) SETTLEMENT
@@ -286,6 +280,16 @@ def settle_expired_options(target_user_id: Optional[int] = None) -> List[Dict[st
                     "status": "ITM_ASSIGNED" if intrinsic_per_contract > 0 else "OTM_EXPIRED_WORTHLESS_PROFIT"
                 }
 
+                try:
+                    from backend.services.firebase_sync import delete_user_position
+                    delete_user_position(user_id, symbol, user_email=pos.get("email"))
+                except Exception:
+                    pass
+
+                logger.info(f"[POSITION_EXPIRED] user_id={user_id} email={pos.get('email')} symbol={symbol} old_qty={-abs_qty} new_qty=0.0 avg_price={entry_price} reason=OPTION_SHORT_EXPIRED status={settle_info['status']}")
+                logger.info(f"[POSITION_CLOSED] user_id={user_id} email={pos.get('email')} symbol={symbol} old_qty={-abs_qty} new_qty=0.0 avg_price={entry_price} reason=OPTION_SHORT_EXPIRED")
+                logger.info(f"[POSITION_DELETED] user_id={user_id} email={pos.get('email')} symbol={symbol} old_qty={-abs_qty} new_qty=0.0 avg_price={entry_price} reason=OPTION_SHORT_EXPIRED")
+
             settled_results.append(settle_info)
             affected_user_ids.add(user_id)
             logger.info(f"Settled expired option {symbol} for user {user_id}: {settle_info}")
@@ -303,7 +307,7 @@ def settle_expired_options(target_user_id: Optional[int] = None) -> List[Dict[st
                         sync_user(dict(u_row))
                     cursor.execute("SELECT * FROM positions WHERE user_id = ?", (uid,))
                     remaining_pos = [dict(p) for p in cursor.fetchall()]
-                    sync_all_user_positions(uid, remaining_pos)
+                    sync_all_user_positions(uid, remaining_pos, user_email=u_row["email"] if u_row else None)
             except Exception as sync_err:
                 logger.error(f"Error during post-settlement cloud sync: {sync_err}")
 

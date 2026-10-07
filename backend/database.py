@@ -594,11 +594,6 @@ def init_db():
             );
             """)
 
-        # Clean up any historical/expired option positions (Platform is 100% Futures & Spot)
-        try:
-            cursor.execute("DELETE FROM positions WHERE asset_class = 'options' OR symbol LIKE '% CE%' OR symbol LIKE '% PE%'")
-        except Exception:
-            pass
 
         # Clean up all old mock/demo accounts (Only genuine Google Authentication accounts and Admin allowed)
         try:
