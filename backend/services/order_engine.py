@@ -1236,19 +1236,28 @@ class OrderEngine:
             }
 
     def reset_portfolio(self, user_id: int) -> Dict[str, Any]:
-        """Reset virtual balance to initial $100,000 and clear all positions and orders."""
+        """Reset virtual balance to initial starting cash and clear all positions and orders."""
         with get_db() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT email FROM users WHERE id = ?", (user_id,))
+            u = cursor.fetchone()
+            user_email = u["email"] if u else None
             cursor.execute("UPDATE users SET virtual_cash = ? WHERE id = ?", (INITIAL_VIRTUAL_CASH, user_id))
             cursor.execute("DELETE FROM positions WHERE user_id = ?", (user_id,))
             cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
             cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
+            try:
+                from backend.services.firebase_sync import clear_user_positions
+                clear_user_positions(user_id, user_email)
+            except Exception:
+                pass
             self._invalidate_cache(user_id)
             return {
                 "success": True,
                 "message": f"Portfolio successfully reset to ${INITIAL_VIRTUAL_CASH:,.2f}.",
                 "cash": INITIAL_VIRTUAL_CASH
             }
+
 
 
 order_engine = OrderEngine()

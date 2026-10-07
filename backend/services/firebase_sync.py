@@ -123,21 +123,20 @@ def delete_user_position(user_id: int, symbol: str, user_email: str = None):
 
 def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]], user_email: str = None):
     """
-    Synchronize all active positions for a user with Firebase Firestore.
+    Synchronize active positions for a user with Firebase Firestore.
     Writes/updates active positions with user_id and user_email.
+    Does NOT delete unmentioned positions (deletion only happens via explicit position close or reset).
     """
     def _task():
         db = get_firestore_client()
         if not db:
             return
         try:
-            active_symbols = set()
             for pos in current_positions:
                 qty = float(pos.get("quantity") or 0.0)
                 if abs(qty) <= 1e-7:
                     continue
                 sym = pos["symbol"]
-                active_symbols.add(sym)
                 doc_id = f"{user_id}_{sym.replace('/', '_').replace(' ', '_')}"
                 email_val = user_email or pos.get("user_email") or ""
                 doc = {
@@ -152,8 +151,18 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                     "updated_at": datetime.now(timezone.utc).isoformat()
                 }
                 db.collection("positions").document(doc_id).set(doc, merge=True)
+        except Exception as e:
+            logger.debug(f"Firebase sync_all_user_positions error: {e}")
+    _run_bg(_task)
 
-            # Query all existing positions for this user in Firestore and delete any that are no longer active
+
+def clear_user_positions(user_id: int, user_email: str = None):
+    """Explicitly delete all positions for a user when account/portfolio is reset."""
+    def _task():
+        db = get_firestore_client()
+        if not db:
+            return
+        try:
             user_docs = list(db.collection("positions").where("user_id", "==", user_id).stream())
             if user_email:
                 email_docs = list(db.collection("positions").where("user_email", "==", user_email.lower().strip()).stream())
@@ -161,16 +170,13 @@ def sync_all_user_positions(user_id: int, current_positions: List[Dict[str, Any]
                 for ed in email_docs:
                     if ed.id not in seen_ids:
                         user_docs.append(ed)
-
             for d in user_docs:
-                data = d.to_dict()
-                if data.get("symbol") not in active_symbols:
-                    d.reference.delete()
-                    logger.info(f"Deleted stale position {data.get('symbol')} from Firestore for user {user_id}")
-
+                d.reference.delete()
+            logger.info(f"Firebase cleared all positions for user {user_id}")
         except Exception as e:
-            logger.debug(f"Firebase sync_all_user_positions error: {e}")
+            logger.debug(f"Firebase clear_user_positions error: {e}")
     _run_bg(_task)
+
 
 
 
